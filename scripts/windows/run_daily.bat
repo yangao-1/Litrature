@@ -50,7 +50,7 @@ if not exist .venv (
 
 set PYTHONPATH=src
 .venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe -m litrature run-daily --source "%SOURCE%" --limit 20 --max-total 120 --vault-dir "%VAULT_DIR%" --zotero-backend "%ZOTERO_BACKEND%" --execute-zotero --require-openai-summary
+.venv\Scripts\python.exe -m litrature run-daily --source "%SOURCE%" --limit 20 --max-total 120 --vault-dir "%VAULT_DIR%" --zotero-backend "%ZOTERO_BACKEND%" --reset-dedup-index --execute-zotero --require-openai-summary
 
 echo 完成：已执行每日流程（真实模式）。
 endlocal

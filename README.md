@@ -154,6 +154,10 @@ Google Scholar 说明：
 混合检索说明：
 - `source=mixed` 会按每个查询依次拉取 Crossref 与 Google Scholar，并在进入后续筛选前统一去重。
 
+去重与 Obsidian 导出优化：
+- Windows 一键脚本默认附带 `--reset-dedup-index`，避免历史索引导致“唯一条数=0”。
+- 当 `data/zotero.synced.jsonl` 为空时，程序会自动回退使用 `data/candidates.unique.jsonl` 生成 Obsidian 笔记，确保 Obsidian 侧仍有输出。
+
 如果运行后 Zotero 没有新增文献，按下面检查：
 1. 查看 `data/zotero.synced.jsonl` 是否包含 `"body": "dry-run"`。若有，说明仍是演练模式。
 2. 查看 `data/zotero.synced.jsonl` 是否包含 `"ok": false` 或 `"status": 4xx/5xx`。若有，说明写入失败，检查 API 凭据与权限。

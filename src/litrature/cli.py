@@ -320,6 +320,12 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
         profile=args.profile,
     )
 
+    if bool(args.reset_dedup_index):
+        index_path = app_cfg.workspace / args.index_file
+        if index_path.exists():
+            index_path.unlink()
+            logger.info("已清理去重索引: %s", index_path)
+
     fetch_args = argparse.Namespace(
         **base.__dict__,
         source=args.source,
@@ -360,9 +366,15 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
     if cmd_zotero_sync(zotero_args) != 0:
         return 1
 
+    obsidian_input = args.zotero_output
+    zotero_rows = read_jsonl(app_cfg.workspace / args.zotero_output)
+    if not zotero_rows:
+        obsidian_input = args.unique_output
+        logger.warning("Zotero 输出为空，Obsidian 导出回退到去重输出: %s", obsidian_input)
+
     obsidian_args = argparse.Namespace(
         **base.__dict__,
-        input=args.zotero_output,
+        input=obsidian_input,
         vault_dir=args.vault_dir,
         profile_name=args.profile_name,
         summary_timeout=args.summary_timeout,
@@ -550,6 +562,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_daily.add_argument("--unique-output", default="data/candidates.unique.jsonl", help="去重后输出")
     run_daily.add_argument("--duplicates-output", default="data/candidates.duplicates.jsonl", help="重复输出")
     run_daily.add_argument("--index-file", default="data/dedup_index.json", help="去重索引")
+    run_daily.add_argument("--reset-dedup-index", action="store_true", help="运行前清理去重索引")
     run_daily.add_argument("--retry-queue", default="data/retry_queue.jsonl", help="重试队列")
     run_daily.add_argument("--zotero-output", default="data/zotero.synced.jsonl", help="Zotero 输出")
     run_daily.add_argument("--vault-dir", default=default_vault_dir, help="Obsidian 库目录")

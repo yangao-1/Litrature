@@ -54,6 +54,7 @@ $argsList = @(
   "--max-total", "$MaxTotal",
   "--vault-dir", "$VaultDir",
   "--zotero-backend", "$ZoteroBackend",
+  "--reset-dedup-index",
   "--require-openai-summary"
 )
 

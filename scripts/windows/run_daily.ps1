@@ -1,9 +1,21 @@
 Param(
   [string]$RepoDir = ".",
   [string]$VaultDir = "C:/Users/yangao/OneDrive - UAB/Obsidian/自动文献汇总",
+  [ValidateSet("crossref", "google_scholar", "mixed")]
+  [string]$Source = "crossref",
   [int]$Limit = 20,
   [int]$MaxTotal = 120,
-  [switch]$ExecuteZotero
+  [bool]$ExecuteZotero = $true,
+  [ValidateSet("api", "mcp")]
+  [string]$ZoteroBackend = "api",
+  [string]$ZoteroUserId = "REPLACE_WITH_YOUR_ZOTERO_USER_ID",
+  [string]$ZoteroApiKey = "REPLACE_WITH_YOUR_ZOTERO_API_KEY",
+  [string]$ZoteroMcpEndpoint = "http://127.0.0.1:8765/mcp",
+  [string]$ZoteroMcpMethod = "zotero.create_item",
+  [string]$SerpApiKey = "REPLACE_WITH_YOUR_SERPAPI_API_KEY",
+  [string]$UnpaywallEmail = "REPLACE_WITH_YOUR_UNPAYWALL_EMAIL",
+  [string]$OpenAIApiKey = "REPLACE_WITH_YOUR_OPENAI_API_KEY",
+  [string]$OpenAIModel = "gpt-4.1-mini"
 )
 
 Set-StrictMode -Version Latest
@@ -34,13 +46,45 @@ if (-Not (Test-Path $pythonExe)) {
 
 $argsList = @(
   "-m", "litrature", "run-daily",
+  "--source", "$Source",
   "--limit", "$Limit",
   "--max-total", "$MaxTotal",
-  "--vault-dir", "$VaultDir"
+  "--vault-dir", "$VaultDir",
+  "--zotero-backend", "$ZoteroBackend",
+  "--require-openai-summary"
 )
 
 if ($ExecuteZotero) {
+  if ($ZoteroBackend -eq "api") {
+    if ($ZoteroUserId -eq "REPLACE_WITH_YOUR_ZOTERO_USER_ID" -or $ZoteroApiKey -eq "REPLACE_WITH_YOUR_ZOTERO_API_KEY") {
+      throw "API 模式下请先填写 ZoteroUserId 和 ZoteroApiKey。"
+    }
+    $env:ZOTERO_USER_ID = $ZoteroUserId
+    $env:ZOTERO_API_KEY = $ZoteroApiKey
+  } else {
+    if (-not $ZoteroMcpEndpoint) {
+      throw "MCP 模式下请设置 ZoteroMcpEndpoint。"
+    }
+    $env:ZOTERO_MCP_ENDPOINT = $ZoteroMcpEndpoint
+    $env:ZOTERO_MCP_METHOD = $ZoteroMcpMethod
+  }
   $argsList += "--execute-zotero"
+}
+
+if ($Source -eq "google_scholar" -or $Source -eq "mixed") {
+  if ($SerpApiKey -eq "REPLACE_WITH_YOUR_SERPAPI_API_KEY") {
+    throw "使用 google_scholar 或 mixed 需要填写 SerpApiKey。"
+  }
+  $env:SERPAPI_API_KEY = $SerpApiKey
+}
+
+if ($UnpaywallEmail -ne "REPLACE_WITH_YOUR_UNPAYWALL_EMAIL") {
+  $env:UNPAYWALL_EMAIL = $UnpaywallEmail
+}
+
+if ($OpenAIApiKey -ne "REPLACE_WITH_YOUR_OPENAI_API_KEY") {
+  $env:OPENAI_API_KEY = $OpenAIApiKey
+  $env:OPENAI_MODEL = $OpenAIModel
 }
 
 $env:PYTHONPATH = "src"

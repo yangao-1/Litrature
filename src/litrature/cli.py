@@ -13,7 +13,7 @@ from .obsidian_export import export_obsidian
 from .retry_queue import append_failure
 from .screening import CandidateRecord, screen_candidate
 from .search import SearchOptions, search_candidates
-from .zotero import ZoteroConfig, create_item, dry_run_item
+from .zotero import ZoteroConfig, create_item, dry_run_item, extract_success_key
 
 
 def cmd_plan(args: argparse.Namespace) -> int:
@@ -215,8 +215,9 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
     execute = bool(args.execute)
     user_id = os.getenv("ZOTERO_USER_ID", "")
     api_key = os.getenv("ZOTERO_API_KEY", "")
+    backend = str(args.zotero_backend).strip().lower()
 
-    cfg = ZoteroConfig(user_id=user_id, api_key=api_key)
+    cfg = ZoteroConfig(user_id=user_id, api_key=api_key, backend=backend)
 
     ok_count = 0
     fail_count = 0
@@ -224,7 +225,7 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
 
     for row in candidates:
         if execute:
-            if not user_id or not api_key:
+            if backend == "api" and (not user_id or not api_key):
                 print("缺少环境变量 ZOTERO_USER_ID 或 ZOTERO_API_KEY，无法执行真实写入。")
                 return 1
             result = create_item(cfg, row)
@@ -233,6 +234,13 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
 
         row_out = dict(row)
         row_out["zotero_result"] = result
+        row_out["zotero_key"] = ""
+        row_out["zotero_attachment_ok"] = bool(result.get("attachment", {}).get("ok", False))
+        row_out["zotero_note_ok"] = bool(result.get("note", {}).get("ok", False))
+
+        if result.get("ok") and bool(args.execute):
+            body = str(result.get("body", ""))
+            row_out["zotero_key"] = extract_success_key(body)
 
         if result.get("ok"):
             ok_count += 1
@@ -251,11 +259,12 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
 
     write_jsonl(out_path, synced_rows)
 
-    logger.info("Zotero 同步完成: 成功=%d, 失败=%d, 执行模式=%s", ok_count, fail_count, execute)
+    logger.info("Zotero 同步完成: 成功=%d, 失败=%d, 执行模式=%s, 后端=%s", ok_count, fail_count, execute, backend)
     print(
         json.dumps(
             {
                 "执行模式": "真实写入" if execute else "演练",
+                "写入后端": backend,
                 "待同步条数": len(candidates),
                 "成功条数": ok_count,
                 "失败条数": fail_count,
@@ -283,6 +292,7 @@ def cmd_obsidian_sync(args: argparse.Namespace) -> int:
         vault_dir=vault,
         profile_name=args.profile_name,
         summarize_timeout=int(args.summary_timeout),
+        require_openai_summary=bool(args.require_openai_summary),
     )
     logger.info("Obsidian 导出完成: 笔记=%d", result["notes"])
     print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -332,6 +342,7 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
         input=args.unique_output,
         retry_queue=args.retry_queue,
         execute=args.execute_zotero,
+        zotero_backend=args.zotero_backend,
         output=args.zotero_output,
     )
     if cmd_zotero_sync(zotero_args) != 0:
@@ -343,6 +354,7 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
         vault_dir=args.vault_dir,
         profile_name=args.profile_name,
         summary_timeout=args.summary_timeout,
+        require_openai_summary=args.require_openai_summary,
     )
     if cmd_obsidian_sync(obsidian_args) != 0:
         return 1
@@ -368,11 +380,12 @@ def cmd_retry_failures(args: argparse.Namespace) -> int:
 
     user_id = os.getenv("ZOTERO_USER_ID", "")
     api_key = os.getenv("ZOTERO_API_KEY", "")
-    if not user_id or not api_key:
+    backend = str(args.zotero_backend).strip().lower()
+    if backend == "api" and (not user_id or not api_key):
         print("缺少环境变量 ZOTERO_USER_ID 或 ZOTERO_API_KEY，无法执行重试。")
         return 1
 
-    cfg = ZoteroConfig(user_id=user_id, api_key=api_key)
+    cfg = ZoteroConfig(user_id=user_id, api_key=api_key, backend=backend)
 
     retried: list[dict] = []
     remain: list[dict] = []
@@ -448,7 +461,7 @@ def build_parser() -> argparse.ArgumentParser:
     screen.set_defaults(func=cmd_screen)
 
     fetch = sub.add_parser("fetch", help="从检索源拉取候选文献")
-    fetch.add_argument("--source", default="crossref", help="检索源，当前支持 crossref")
+    fetch.add_argument("--source", default="crossref", help="检索源，支持 crossref / google_scholar / mixed")
     fetch.add_argument("--limit", default=20, type=int, help="拉取条数上限")
     fetch.add_argument("--max-total", default=100, type=int, help="多查询合并后的总条数上限")
     fetch.add_argument("--timeout", default=20, type=int, help="网络超时（秒）")
@@ -487,6 +500,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="开启真实写入 Zotero（默认仅演练）",
     )
+    zotero_sync.add_argument(
+        "--zotero-backend",
+        default=os.getenv("ZOTERO_BACKEND", "api"),
+        choices=["api", "mcp"],
+        help="Zotero 写入后端：api 或 mcp",
+    )
     zotero_sync.set_defaults(func=cmd_zotero_sync)
 
     default_vault_dir = os.getenv("OBSIDIAN_VAULT_DIR", "obsidian_export")
@@ -500,10 +519,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     obsidian_sync.add_argument("--profile-name", default="zn-anode-interface", help="写入笔记的配置名称")
     obsidian_sync.add_argument("--summary-timeout", default=30, type=int, help="摘要超时秒数")
+    obsidian_sync.add_argument(
+        "--require-openai-summary",
+        action="store_true",
+        help="要求必须配置 OPENAI_API_KEY；未配置则失败退出",
+    )
     obsidian_sync.set_defaults(func=cmd_obsidian_sync)
 
     run_daily = sub.add_parser("run-daily", help="一键执行每日全流程")
-    run_daily.add_argument("--source", default="crossref", help="检索源")
+    run_daily.add_argument("--source", default="crossref", help="检索源（crossref / google_scholar / mixed）")
     run_daily.add_argument("--limit", default=20, type=int, help="单查询拉取上限")
     run_daily.add_argument("--max-total", default=100, type=int, help="合并总条数上限")
     run_daily.add_argument("--timeout", default=20, type=int, help="网络超时")
@@ -518,6 +542,17 @@ def build_parser() -> argparse.ArgumentParser:
     run_daily.add_argument("--profile-name", default="zn-anode-interface", help="配置名称")
     run_daily.add_argument("--summary-timeout", default=30, type=int, help="摘要超时秒数")
     run_daily.add_argument("--execute-zotero", action="store_true", help="执行真实 Zotero 写入")
+    run_daily.add_argument(
+        "--zotero-backend",
+        default=os.getenv("ZOTERO_BACKEND", "api"),
+        choices=["api", "mcp"],
+        help="Zotero 写入后端：api 或 mcp",
+    )
+    run_daily.add_argument(
+        "--require-openai-summary",
+        action="store_true",
+        help="要求必须配置 OPENAI_API_KEY；未配置则失败退出",
+    )
     run_daily.set_defaults(func=cmd_run_daily)
 
     retry = sub.add_parser("retry-failures", help="重试 Zotero 失败队列")
@@ -525,6 +560,12 @@ def build_parser() -> argparse.ArgumentParser:
     retry.add_argument("--output", default="data/retry_results.jsonl", help="重试结果输出")
     retry.add_argument("--max-items", default=50, type=int, help="单次重试最大条数")
     retry.add_argument("--replace-queue", action="store_true", help="重试后回写剩余失败队列")
+    retry.add_argument(
+        "--zotero-backend",
+        default=os.getenv("ZOTERO_BACKEND", "api"),
+        choices=["api", "mcp"],
+        help="Zotero 写入后端：api 或 mcp",
+    )
     retry.set_defaults(func=cmd_retry_failures)
 
     return parser

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass
 from html import unescape
@@ -31,6 +32,16 @@ def _build_crossref_url(query: str, limit: int) -> str:
         f"?query.bibliographic={quote(query)}"
         "&sort=published&order=desc"
         f"&rows={limit}"
+    )
+
+
+def _build_serpapi_scholar_url(query: str, limit: int, api_key: str) -> str:
+    return (
+        "https://serpapi.com/search.json"
+        "?engine=google_scholar"
+        f"&q={quote(query)}"
+        f"&num={limit}"
+        f"&api_key={quote(api_key)}"
     )
 
 
@@ -80,6 +91,63 @@ def _parse_crossref_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
             "doi": doi,
             "source": "crossref",
             "source_url": url,
+            "pdf_url": pdf_url,
+        }
+        if not _is_domain_relevant(row):
+            continue
+        rows.append(row)
+
+    return rows
+
+
+def _parse_serpapi_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    items = payload.get("organic_results", [])
+    rows: list[dict[str, Any]] = []
+    if not isinstance(items, list):
+        return rows
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title", "")).strip()
+        snippet = str(item.get("snippet", "")).strip()
+        link = str(item.get("link", "")).strip()
+
+        publication_info = item.get("publication_info", {})
+        summary = ""
+        if isinstance(publication_info, dict):
+            summary = str(publication_info.get("summary", "")).strip()
+
+        journal = ""
+        year: int | None = None
+        if summary:
+            parts = [p.strip() for p in summary.split("-") if p.strip()]
+            if parts:
+                journal = parts[0]
+            m = re.search(r"\b(19|20)\d{2}\b", summary)
+            if m:
+                year = int(m.group(0))
+
+        doi = ""
+        resources = item.get("resources", [])
+        pdf_url = ""
+        if isinstance(resources, list):
+            for res in resources:
+                if not isinstance(res, dict):
+                    continue
+                res_link = str(res.get("link", "")).strip()
+                if res_link.lower().endswith(".pdf"):
+                    pdf_url = res_link
+                    break
+
+        row = {
+            "title": title,
+            "abstract": snippet,
+            "journal": journal,
+            "year": year,
+            "doi": doi,
+            "source": "google_scholar",
+            "source_url": link,
             "pdf_url": pdf_url,
         }
         if not _is_domain_relevant(row):
@@ -184,26 +252,46 @@ def search_candidates(profile: ResearchProfile, options: SearchOptions) -> list[
         raise ValueError("研究画像中的检索式为空")
 
     source = options.source.lower().strip()
-    if source != "crossref":
+    if source not in ("crossref", "google_scholar", "mixed"):
         raise ValueError(f"暂不支持的检索源: {options.source}")
+
+    if source == "mixed":
+        source_chain = ["crossref", "google_scholar"]
+    else:
+        source_chain = [source]
 
     merged: list[dict[str, Any]] = []
     seen: set[str] = set()
 
-    for query in query_list:
-        url = _build_crossref_url(query=query, limit=options.limit)
-        with urlopen(url, timeout=options.timeout_seconds) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
+    serpapi_key = os.getenv("SERPAPI_API_KEY", "").strip()
+    if "google_scholar" in source_chain and not serpapi_key:
+        raise ValueError("source=google_scholar 或 mixed 需要环境变量 SERPAPI_API_KEY")
 
-        parsed_rows = _apply_journal_policy(_parse_crossref_items(payload), profile)
-        for row in parsed_rows:
-            row["matched_query"] = query
-            key = _row_key(row)
-            if key in seen:
-                continue
-            seen.add(key)
-            merged.append(row)
-            if len(merged) >= options.max_total:
-                return merged
+    for query in query_list:
+        for source_name in source_chain:
+            if source_name == "crossref":
+                url = _build_crossref_url(query=query, limit=options.limit)
+            else:
+                url = _build_serpapi_scholar_url(query=query, limit=options.limit, api_key=serpapi_key)
+
+            with urlopen(url, timeout=options.timeout_seconds) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+
+            if source_name == "crossref":
+                parsed = _parse_crossref_items(payload)
+            else:
+                parsed = _parse_serpapi_items(payload)
+
+            parsed_rows = _apply_journal_policy(parsed, profile)
+            for row in parsed_rows:
+                row["matched_query"] = query
+                row["source"] = source_name
+                key = _row_key(row)
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged.append(row)
+                if len(merged) >= options.max_total:
+                    return merged
 
     return merged

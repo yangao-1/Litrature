@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .summarizer import summarize_row
+from .summarizer import generate_note_markdown, generate_report_markdown, is_openai_enabled
 
 
 def _safe_name(text: str) -> str:
@@ -18,7 +18,12 @@ def export_obsidian(
     vault_dir: Path,
     profile_name: str,
     summarize_timeout: int = 30,
+    require_openai_summary: bool = False,
 ) -> dict[str, Any]:
+    ai_enabled = is_openai_enabled()
+    if require_openai_summary and not ai_enabled:
+        raise RuntimeError("未检测到 OPENAI_API_KEY，无法生成 AI 总结。")
+
     notes_dir = vault_dir / "文献笔记"
     reports_dir = vault_dir / "自动报告"
     notes_dir.mkdir(parents=True, exist_ok=True)
@@ -33,7 +38,6 @@ def export_obsidian(
         if not title:
             continue
 
-        summary = summarize_row(row, timeout_seconds=summarize_timeout)
         doi = str(row.get("doi", "")).strip()
         journal = str(row.get("journal", "")).strip()
         year = str(row.get("year", "")).strip()
@@ -43,6 +47,7 @@ def export_obsidian(
         fname = f"{_safe_name(title)}.md"
         path = notes_dir / fname
 
+        ai_note_markdown = generate_note_markdown(row, timeout_seconds=summarize_timeout)
         content = (
             "---\n"
             f"title: \"{title}\"\n"
@@ -54,43 +59,35 @@ def export_obsidian(
             f"profile: \"{profile_name}\"\n"
             "tags: [自动文献, Zn负极, 机制]\n"
             "---\n\n"
-            f"# {title}\n\n"
-            "## 研究问题\n"
-            f"{summary['研究问题']}\n\n"
-            "## 方法证据\n"
-            f"{summary['方法证据']}\n\n"
-            "## 机制结论\n"
-            f"{summary['机制结论']}\n\n"
-            "## 局限与疑问\n"
-            f"{summary['局限与疑问']}\n"
+            f"{ai_note_markdown}\n"
         )
         path.write_text(content, encoding="utf-8")
         written_notes.append(path)
 
     daily = reports_dir / f"日报-{today}.md"
-    daily_lines = [
-        f"# 自动文献日报 {today}",
-        "",
-        f"- 新增笔记数量: {len(written_notes)}",
-        "- 今日重点: 需优先人工核查方法证据和 HER 抑制链路。",
-        "",
-        "## 新增条目",
-    ]
-    daily_lines.extend([f"- [[文献笔记/{p.name[:-3]}]]" for p in written_notes])
-    daily.write_text("\n".join(daily_lines) + "\n", encoding="utf-8")
+    note_titles = [p.name[:-3] for p in written_notes]
+    daily_markdown = generate_report_markdown(
+        rows=rows,
+        note_titles=note_titles,
+        report_type="daily",
+        timeout_seconds=summarize_timeout,
+    )
+    daily_content = daily_markdown + "\n\n## 新增条目\n" + "\n".join(
+        [f"- [[文献笔记/{title}]]" for title in note_titles]
+    )
+    daily.write_text(daily_content + "\n", encoding="utf-8")
 
     weekly = reports_dir / f"周报-{week_tag}.md"
-    weekly_lines = [
-        f"# 自动文献周报 {week_tag}",
-        "",
-        f"- 本次汇总条目: {len(written_notes)}",
-        "- 机制关注: Zn2+ 界面变化、HER 抑制路径、电解液作用步骤。",
-        "",
-        "## 建议下周跟进",
-        "- 补充含原位/operando证据的论文。",
-        "- 追踪 NH3 与 acetate 配位差异的直接对比研究。",
-    ]
-    weekly.write_text("\n".join(weekly_lines) + "\n", encoding="utf-8")
+    weekly_markdown = generate_report_markdown(
+        rows=rows,
+        note_titles=note_titles,
+        report_type="weekly",
+        timeout_seconds=summarize_timeout,
+    )
+    weekly_content = weekly_markdown + "\n\n## 本周文献链接\n" + "\n".join(
+        [f"- [[文献笔记/{title}]]" for title in note_titles]
+    )
+    weekly.write_text(weekly_content + "\n", encoding="utf-8")
 
     index = vault_dir / "自动文献总览.md"
     index_lines = [
@@ -107,6 +104,7 @@ def export_obsidian(
 
     return {
         "notes": len(written_notes),
+        "ai_summary_mode": "gpt" if ai_enabled else "rule-fallback",
         "daily_report": str(daily),
         "weekly_report": str(weekly),
         "index": str(index),

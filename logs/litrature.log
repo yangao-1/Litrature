@@ -1,0 +1,28 @@
+2026-04-01 11:07:19 | INFO | litrature | 已输出研究配置摘要
+2026-04-01 11:07:19 | INFO | litrature | 已写入示例候选文献: /workspaces/Litrature/data/candidates.sample.jsonl
+2026-04-01 11:07:19 | INFO | litrature | 筛选完成: 输入=/workspaces/Litrature/data/candidates.sample.jsonl, 输出=/workspaces/Litrature/data/screened.latest.jsonl, 保留=1/2
+2026-04-01 11:08:12 | INFO | litrature | 筛选完成: 输入=/workspaces/Litrature/data/candidates.sample.jsonl, 输出=/workspaces/Litrature/data/screened.latest.jsonl, 保留=1/2
+2026-04-01 11:10:31 | INFO | litrature | 去重完成: 输入=2, 唯一=2, 重复=0
+2026-04-01 11:10:31 | INFO | litrature | Zotero 同步完成: 成功=1, 失败=0, 执行模式=False
+2026-04-01 11:10:43 | INFO | litrature | 检索完成: 来源=crossref, 条数=3, 输出=/workspaces/Litrature/data/candidates.raw.jsonl
+2026-04-01 11:34:51 | INFO | litrature | 检索完成: 来源=crossref, 条数=12, 输出=/workspaces/Litrature/data/candidates.raw.jsonl
+2026-04-01 11:34:51 | INFO | litrature | 筛选完成: 输入=/workspaces/Litrature/data/candidates.raw.jsonl, 输出=/workspaces/Litrature/data/screened.latest.jsonl, 保留=0/12
+2026-04-01 11:34:51 | INFO | litrature | 去重完成: 输入=12, 唯一=12, 重复=0
+2026-04-01 11:35:41 | INFO | litrature | 检索完成: 来源=crossref, 条数=12, 输出=/workspaces/Litrature/data/candidates.raw.jsonl
+2026-04-01 11:35:41 | INFO | litrature | 筛选完成: 输入=/workspaces/Litrature/data/candidates.raw.jsonl, 输出=/workspaces/Litrature/data/screened.latest.jsonl, 保留=2/12
+2026-04-01 11:35:41 | INFO | litrature | 去重完成: 输入=12, 唯一=0, 重复=12
+2026-04-01 11:36:22 | INFO | litrature | 检索完成: 来源=crossref, 条数=12, 输出=/workspaces/Litrature/data/candidates.raw.jsonl
+2026-04-01 11:36:22 | INFO | litrature | 筛选完成: 输入=/workspaces/Litrature/data/candidates.raw.jsonl, 输出=/workspaces/Litrature/data/screened.latest.jsonl, 保留=2/12
+2026-04-01 11:36:22 | INFO | litrature | 去重完成: 输入=12, 唯一=0, 重复=12
+2026-04-01 11:36:22 | INFO | litrature | Obsidian 导出完成: 笔记=0
+2026-04-01 11:36:22 | INFO | litrature | 每日自动流程已完成
+2026-04-01 11:38:44 | INFO | litrature | 检索完成: 来源=crossref, 条数=3, 输出=/workspaces/Litrature/data/candidates.raw.jsonl
+2026-04-01 11:38:44 | INFO | litrature | 筛选完成: 输入=/workspaces/Litrature/data/candidates.raw.jsonl, 输出=/workspaces/Litrature/data/screened.latest.jsonl, 保留=2/3
+2026-04-01 11:42:12 | INFO | litrature | 检索完成: 来源=crossref, 条数=3, 输出=/workspaces/Litrature/data/candidates.raw.jsonl
+2026-04-01 11:42:12 | INFO | litrature | 筛选完成: 输入=/workspaces/Litrature/data/candidates.raw.jsonl, 输出=/workspaces/Litrature/data/screened.latest.jsonl, 保留=2/3
+2026-04-01 11:42:12 | INFO | litrature | 去重完成: 输入=3, 唯一=2, 重复=1
+2026-04-01 11:42:12 | INFO | litrature | Zotero 同步完成: 成功=1, 失败=0, 执行模式=False
+2026-04-01 11:42:12 | INFO | litrature | Obsidian 导出完成: 笔记=1
+2026-04-01 11:42:12 | INFO | litrature | 每日自动流程已完成
+2026-04-01 11:42:12 | INFO | litrature | Obsidian 导出完成: 笔记=1
+2026-04-01 11:50:04 | INFO | litrature | 检索完成: 来源=crossref, 条数=3, 输出=/workspaces/Litrature/data/candidates.raw.jsonl

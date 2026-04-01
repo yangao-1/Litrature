@@ -1,0 +1,128 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Litrature: 安装依赖",
+      "type": "shell",
+      "command": "pip",
+      "args": ["install", "-r", "requirements.txt"],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Litrature: 一键日跑(演练)",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "-m",
+        "litrature",
+        "run-daily",
+        "--limit",
+        "20",
+        "--max-total",
+        "120",
+        "--vault-dir",
+        "${input:obsidianVaultDir}"
+      ],
+      "options": {
+        "env": {
+          "PYTHONPATH": "src"
+        }
+      },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Litrature: 一键日跑(真实Zotero)",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "-m",
+        "litrature",
+        "run-daily",
+        "--limit",
+        "20",
+        "--max-total",
+        "120",
+        "--execute-zotero",
+        "--vault-dir",
+        "${input:obsidianVaultDir}"
+      ],
+      "options": {
+        "env": {
+          "PYTHONPATH": "src"
+        }
+      },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Litrature: 仅检索+筛选",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "-m",
+        "litrature",
+        "fetch",
+        "--limit",
+        "20",
+        "--max-total",
+        "120"
+      ],
+      "options": {
+        "env": {
+          "PYTHONPATH": "src"
+        }
+      },
+      "dependsOn": ["Litrature: 筛选最新候选"],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Litrature: 筛选最新候选",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "-m",
+        "litrature",
+        "screen",
+        "--input",
+        "data/candidates.raw.jsonl"
+      ],
+      "options": {
+        "env": {
+          "PYTHONPATH": "src"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Litrature: 重试失败队列",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "-m",
+        "litrature",
+        "retry-failures",
+        "--max-items",
+        "50",
+        "--replace-queue"
+      ],
+      "options": {
+        "env": {
+          "PYTHONPATH": "src"
+        }
+      },
+      "group": "test",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "obsidianVaultDir",
+      "type": "promptString",
+      "description": "Obsidian 库目录（Windows 示例: C:/Users/yangao/OneDrive - UAB/Obsidian/自动文献汇总）",
+      "default": "obsidian_export"
+    }
+  ]
+}

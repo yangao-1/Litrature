@@ -1,0 +1,97 @@
+profile:
+  name: zn-anode-interface-aqueous-zib
+  domain: aqueous zinc-ion batteries
+  updated_at: 2026-04-01
+
+topics:
+  - Zn metal anode interfacial regulation in aqueous Zn-ion batteries
+  - Electrolyte chemistry engineering: pH buffer and ligand coordination (NH3 and acetate systems)
+  - Zn2+ solvation and desolvation with deposition kinetics modulation
+  - Hydrogel and polymer coating for Zn interface stabilization (SA-based systems)
+  - Suppression of dendrite growth and HER via interfacial chemistry design
+
+must_have_terms:
+  - electrochemical impedance spectroscopy
+  - EIS
+  - Tafel analysis
+  - polarization curves
+  - linear sweep voltammetry
+  - LSV
+  - X-ray photoelectron spectroscopy
+  - XPS
+  - in situ
+  - operando
+  - Zn plating/stripping
+  - coulombic efficiency
+  - nucleation overpotential
+  - solvation structure
+  - desolvation energy
+
+exclude_terms:
+  - review
+  - MXene
+  - MOF
+  - cathode
+  - full cell performance
+  - energy density
+  - high capacity
+  - composite material
+  - nanostructure design
+  - carbon coating
+
+target_journals:
+  tier_1:
+    - Advanced Energy Materials
+    - Energy and Environmental Science
+    - Joule
+  tier_2:
+    - Nano Energy
+    - Energy Storage Materials
+    - ACS Energy Letters
+  tier_3:
+    - Journal of Power Sources
+    - Electrochimica Acta
+    - Chemical Engineering Journal
+
+journal_policy:
+  require_whitelist_match: false
+  whitelist:
+    - Advanced Energy Materials
+    - Energy and Environmental Science
+    - Joule
+    - Nano Energy
+    - Energy Storage Materials
+    - ACS Energy Letters
+    - Journal of Power Sources
+    - Electrochimica Acta
+    - Chemical Engineering Journal
+  blacklist:
+    - International Journal of Agriculture and Biology
+    - Basrah Journal of Veterinary Research
+    - Egyptian Journal of Medical Microbiology
+
+mechanism_questions:
+  - What changed at the Zn2+ interface?
+  - How was HER suppressed?
+  - Which specific step is changed by NH3 or acetate chemistry?
+
+search_query_core: >
+  ("zinc anode" OR "Zn metal") AND
+  ("electrolyte" OR "interface" OR "coordination" OR "buffer" OR "hydrogel" OR "polymer") AND
+  ("solvation" OR "desolvation" OR "nucleation" OR "interphase" OR "HER" OR "dendrite") NOT
+  ("review" OR "MXene" OR "MOF" OR "cathode")
+
+search_strategy:
+  mode: multi_query
+  queries:
+    - '("zinc anode" OR "Zn metal") AND ("aqueous zinc-ion" OR "AZIB") AND ("electrolyte" OR "interface" OR "interfacial")'
+    - '("zinc anode" OR "Zn metal") AND ("NH3" OR "ammonia" OR "acetate" OR "ligand coordination" OR "pH buffer")'
+    - '("zinc anode" OR "Zn deposition" OR "Zn plating/stripping") AND ("solvation" OR "desolvation" OR "nucleation" OR "kinetics")'
+    - '("zinc anode" OR "Zn metal") AND ("hydrogel" OR "polymer coating" OR "SA") AND ("HER" OR "dendrite")'
+  merge_mode: union
+  dedup_by: doi_then_title
+
+quality_gate:
+  require_mechanism_evidence: true
+  minimum_method_hits: 2
+  reject_if_only_performance_claims: true

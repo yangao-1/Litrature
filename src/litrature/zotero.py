@@ -492,7 +492,12 @@ def _extract_pdf_link_from_html(html: str, base_url: str) -> str:
 
 
 def _new_write_token(prefix: str) -> str:
-    return f"{prefix}-{uuid4().hex}"
+    short_prefix = (prefix or "tok")[:8]
+    unique = uuid4().hex[:16]
+    token = f"{short_prefix}-{unique}"
+    if len(token) < 5:
+        token = (token + "00000")[:5]
+    return token[:32]
 
 
 def dry_run_item(row: dict[str, Any]) -> dict[str, Any]:

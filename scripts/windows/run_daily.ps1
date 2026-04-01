@@ -11,11 +11,25 @@ $ErrorActionPreference = "Stop"
 
 Set-Location $RepoDir
 
-if (-Not (Test-Path ".venv")) {
-  python -m venv .venv
+function Resolve-PythonLauncher {
+  if (Get-Command py -ErrorAction SilentlyContinue) { return "py -3" }
+  if (Get-Command python -ErrorAction SilentlyContinue) { return "python" }
+  throw "未找到 Python。请先安装 Python 3，并勾选 Add python.exe to PATH。"
 }
 
 $pythonExe = Join-Path $PWD ".venv/Scripts/python.exe"
+if (-Not (Test-Path $pythonExe)) {
+  $launcher = Resolve-PythonLauncher
+  if (Test-Path ".venv") {
+    Remove-Item -Recurse -Force ".venv"
+  }
+  Invoke-Expression "$launcher -m venv .venv"
+}
+
+if (-Not (Test-Path $pythonExe)) {
+  throw "虚拟环境创建失败：未找到 .venv/Scripts/python.exe"
+}
+
 & $pythonExe -m pip install -r requirements.txt
 
 $argsList = @(

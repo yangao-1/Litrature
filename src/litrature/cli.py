@@ -224,6 +224,7 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
     ok_count = 0
     fail_count = 0
     synced_rows: list[dict] = []
+    fail_samples: list[dict[str, str | int]] = []
 
     for row in candidates:
         if execute:
@@ -250,6 +251,14 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
             continue
 
         fail_count += 1
+        if len(fail_samples) < 3:
+            fail_samples.append(
+                {
+                    "title": str(row.get("title", ""))[:120],
+                    "status": int(result.get("status", 0) or 0),
+                    "body": str(result.get("body", ""))[:400],
+                }
+            )
         append_failure(
             queue_path,
             {
@@ -272,6 +281,7 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
                 "失败条数": fail_count,
                 "失败重试队列": str(queue_path),
                 "同步输出": str(out_path),
+                "失败示例": fail_samples,
             },
             ensure_ascii=False,
             indent=2,

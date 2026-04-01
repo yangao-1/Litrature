@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import quote, urljoin
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+from uuid import uuid4
 
 
 @dataclass
@@ -58,7 +59,7 @@ def create_item(cfg: ZoteroConfig, row: dict[str, Any], timeout_seconds: int = 2
         headers={
             "Content-Type": "application/json",
             "Zotero-API-Key": cfg.api_key,
-            "Zotero-Write-Token": "litrature-auto",
+            "Zotero-Write-Token": _new_write_token("litrature-auto"),
         },
     )
 
@@ -274,7 +275,7 @@ def _create_attachment(cfg: ZoteroConfig, parent_key: str, pdf_url: str, timeout
         headers={
             "Content-Type": "application/json",
             "Zotero-API-Key": cfg.api_key,
-            "Zotero-Write-Token": "litrature-attach",
+            "Zotero-Write-Token": _new_write_token("litrature-attach"),
         },
     )
     try:
@@ -304,7 +305,7 @@ def _create_ai_note(cfg: ZoteroConfig, parent_key: str, row: dict[str, Any], tim
         headers={
             "Content-Type": "application/json",
             "Zotero-API-Key": cfg.api_key,
-            "Zotero-Write-Token": "litrature-note",
+            "Zotero-Write-Token": _new_write_token("litrature-note"),
         },
     )
     try:
@@ -488,6 +489,10 @@ def _extract_pdf_link_from_html(html: str, base_url: str) -> str:
             continue
         return urljoin(base_url, raw)
     return ""
+
+
+def _new_write_token(prefix: str) -> str:
+    return f"{prefix}-{uuid4().hex}"
 
 
 def dry_run_item(row: dict[str, Any]) -> dict[str, Any]:

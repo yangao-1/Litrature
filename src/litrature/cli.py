@@ -216,8 +216,10 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
     user_id = os.getenv("ZOTERO_USER_ID", "")
     api_key = os.getenv("ZOTERO_API_KEY", "")
     backend = str(args.zotero_backend).strip().lower()
+    library_type = os.getenv("ZOTERO_LIBRARY_TYPE", "users").strip() or "users"
+    library_id = os.getenv("ZOTERO_LIBRARY_ID", "").strip() or user_id
 
-    cfg = ZoteroConfig(user_id=user_id, api_key=api_key, backend=backend)
+    cfg = ZoteroConfig(user_id=library_id, api_key=api_key, library_type=library_type, backend=backend)
 
     ok_count = 0
     fail_count = 0
@@ -225,8 +227,8 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
 
     for row in candidates:
         if execute:
-            if backend == "api" and (not user_id or not api_key):
-                print("缺少环境变量 ZOTERO_USER_ID 或 ZOTERO_API_KEY，无法执行真实写入。")
+            if backend == "api" and (not library_id or not api_key):
+                print("缺少环境变量 ZOTERO_USER_ID/ZOTERO_LIBRARY_ID 或 ZOTERO_API_KEY，无法执行真实写入。")
                 return 1
             result = create_item(cfg, row)
         else:
@@ -381,11 +383,13 @@ def cmd_retry_failures(args: argparse.Namespace) -> int:
     user_id = os.getenv("ZOTERO_USER_ID", "")
     api_key = os.getenv("ZOTERO_API_KEY", "")
     backend = str(args.zotero_backend).strip().lower()
-    if backend == "api" and (not user_id or not api_key):
-        print("缺少环境变量 ZOTERO_USER_ID 或 ZOTERO_API_KEY，无法执行重试。")
+    library_type = os.getenv("ZOTERO_LIBRARY_TYPE", "users").strip() or "users"
+    library_id = os.getenv("ZOTERO_LIBRARY_ID", "").strip() or user_id
+    if backend == "api" and (not library_id or not api_key):
+        print("缺少环境变量 ZOTERO_USER_ID/ZOTERO_LIBRARY_ID 或 ZOTERO_API_KEY，无法执行重试。")
         return 1
 
-    cfg = ZoteroConfig(user_id=user_id, api_key=api_key, backend=backend)
+    cfg = ZoteroConfig(user_id=library_id, api_key=api_key, library_type=library_type, backend=backend)
 
     retried: list[dict] = []
     remain: list[dict] = []

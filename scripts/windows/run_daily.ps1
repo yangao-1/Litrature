@@ -8,6 +8,9 @@ Param(
   [bool]$ExecuteZotero = $true,
   [ValidateSet("api", "mcp")]
   [string]$ZoteroBackend = "api",
+  [ValidateSet("users", "groups")]
+  [string]$ZoteroLibraryType = "users",
+  [string]$ZoteroLibraryId = "",
   [string]$ZoteroUserId = "REPLACE_WITH_YOUR_ZOTERO_USER_ID",
   [string]$ZoteroApiKey = "REPLACE_WITH_YOUR_ZOTERO_API_KEY",
   [string]$ZoteroMcpEndpoint = "http://127.0.0.1:8765/mcp",
@@ -56,10 +59,16 @@ $argsList = @(
 
 if ($ExecuteZotero) {
   if ($ZoteroBackend -eq "api") {
-    if ($ZoteroUserId -eq "REPLACE_WITH_YOUR_ZOTERO_USER_ID" -or $ZoteroApiKey -eq "REPLACE_WITH_YOUR_ZOTERO_API_KEY") {
+    $effectiveLibraryId = $ZoteroLibraryId
+    if (-not $effectiveLibraryId) {
+      $effectiveLibraryId = $ZoteroUserId
+    }
+    if ($effectiveLibraryId -eq "REPLACE_WITH_YOUR_ZOTERO_USER_ID" -or $ZoteroApiKey -eq "REPLACE_WITH_YOUR_ZOTERO_API_KEY") {
       throw "API 模式下请先填写 ZoteroUserId 和 ZoteroApiKey。"
     }
     $env:ZOTERO_USER_ID = $ZoteroUserId
+    $env:ZOTERO_LIBRARY_TYPE = $ZoteroLibraryType
+    $env:ZOTERO_LIBRARY_ID = $effectiveLibraryId
     $env:ZOTERO_API_KEY = $ZoteroApiKey
   } else {
     if (-not $ZoteroMcpEndpoint) {

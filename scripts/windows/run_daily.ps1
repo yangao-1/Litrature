@@ -108,6 +108,16 @@ if ($OpenAIApiKey -ne "REPLACE_WITH_YOUR_OPENAI_API_KEY") {
   $env:OPENAI_MODEL = $OpenAIModel
 }
 
+if (-not $env:OPENAI_API_KEY) {
+  throw "OPENAI_API_KEY is missing. Pass -OpenAIApiKey or set environment variable OPENAI_API_KEY."
+}
+
+$env:OPENAI_MODEL = $OpenAIModel
+
 $env:PYTHONPATH = "src"
 & $pythonExe @argsList
+if ($LASTEXITCODE -ne 0) {
+  throw "Daily workflow failed. Python exit code: $LASTEXITCODE"
+}
+
 Write-Host "Done: daily workflow finished (real Zotero write + Obsidian export, no standalone PDF cache)."

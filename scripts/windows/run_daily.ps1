@@ -16,6 +16,7 @@ Param(
   [string]$ZoteroApiKey = "REPLACE_WITH_YOUR_ZOTERO_API_KEY",
   [string]$ZoteroMcpEndpoint = "http://127.0.0.1:8765/mcp",
   [string]$ZoteroMcpMethod = "zotero.create_item",
+  [string]$ZoteroMcpSessionId = "",
   [string]$SerpApiKey = "REPLACE_WITH_YOUR_SERPAPI_API_KEY",
   [string]$UnpaywallEmail = "REPLACE_WITH_YOUR_UNPAYWALL_EMAIL",
   [string]$OpenAIApiKey = "REPLACE_WITH_YOUR_OPENAI_API_KEY",
@@ -88,6 +89,9 @@ if ($ExecuteZotero) {
     }
     $env:ZOTERO_MCP_ENDPOINT = $ZoteroMcpEndpoint
     $env:ZOTERO_MCP_METHOD = $ZoteroMcpMethod
+    if ($ZoteroMcpSessionId) {
+      $env:ZOTERO_MCP_SESSION_ID = $ZoteroMcpSessionId
+    }
   }
   $argsList += "--execute-zotero"
 }

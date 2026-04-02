@@ -141,6 +141,12 @@ def _create_item_via_mcp(cfg: ZoteroConfig, row: dict[str, Any], timeout_seconds
     if mcp_token:
         headers["Authorization"] = f"Bearer {mcp_token}"
 
+    mcp_session_id = os.getenv("ZOTERO_MCP_SESSION_ID", "").strip()
+    if mcp_session_id:
+        # Different MCP servers may use different header names; send common variants.
+        headers["Mcp-Session-Id"] = mcp_session_id
+        headers["X-Session-Id"] = mcp_session_id
+
     req = Request(
         endpoint,
         data=json.dumps(request_payload).encode("utf-8"),

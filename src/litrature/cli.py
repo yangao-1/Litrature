@@ -418,7 +418,26 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
         success_count = sum(1 for r in zotero_rows if bool((r.get("zotero_result") or {}).get("ok", False)))
         if success_count == 0:
             logger.error("Zotero 执行模式下写入成功为 0，停止后续 Obsidian 导出")
+            fail_samples: list[dict[str, str | int]] = []
+            for row in zotero_rows:
+                zr = row.get("zotero_result") if isinstance(row, dict) else None
+                if not isinstance(zr, dict):
+                    continue
+                if bool(zr.get("ok", False)):
+                    continue
+                fail_samples.append(
+                    {
+                        "title": str(row.get("title", ""))[:120],
+                        "status": int(zr.get("status", 0) or 0),
+                        "body": str(zr.get("body", ""))[:400],
+                    }
+                )
+                if len(fail_samples) >= 3:
+                    break
+
             print("Zotero 写入成功为 0，请检查 MCP 连接/会话与返回错误后重试。")
+            if fail_samples:
+                print(json.dumps({"zotero_fail_samples": fail_samples}, ensure_ascii=False, indent=2))
             return 1
 
     if unique_rows and zotero_rows:

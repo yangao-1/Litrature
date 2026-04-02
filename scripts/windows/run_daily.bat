@@ -59,7 +59,7 @@ if not exist .venv (
 
 set PYTHONPATH=src
 .venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe -m litrature run-daily --source "%SOURCE%" --days-back %DAYS_BACK% --limit 20 --max-total 120 --vault-dir "%VAULT_DIR%" --zotero-backend "%ZOTERO_BACKEND%" --disable-local-pdf-cache --reset-dedup-index --execute-zotero --require-openai-summary
+.venv\Scripts\python.exe -m litrature run-daily --source "%SOURCE%" --days-back %DAYS_BACK% --limit 20 --max-total 120 --vault-dir "%VAULT_DIR%" --zotero-backend "%ZOTERO_BACKEND%" --disable-local-pdf-cache --reset-dedup-index --execute-zotero --allow-zotero-zero-success --require-openai-summary
 if errorlevel 1 (
   echo Daily workflow failed. Please check OPENAI_API_KEY/Zotero settings and logs.
   exit /b 1

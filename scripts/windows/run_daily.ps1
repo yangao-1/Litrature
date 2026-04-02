@@ -7,6 +7,7 @@ Param(
   [int]$Limit = 20,
   [int]$MaxTotal = 120,
   [bool]$ExecuteZotero = $true,
+  [bool]$AllowZoteroZeroSuccess = $true,
   [ValidateSet("api", "mcp")]
   [string]$ZoteroBackend = "mcp",
   [ValidateSet("users", "groups")]
@@ -112,6 +113,9 @@ if ($ExecuteZotero) {
     }
   }
   $argsList += "--execute-zotero"
+  if ($AllowZoteroZeroSuccess) {
+    $argsList += "--allow-zotero-zero-success"
+  }
 }
 
 if ($Source -eq "google_scholar" -or $Source -eq "mixed") {

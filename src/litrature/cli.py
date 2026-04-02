@@ -417,7 +417,11 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
     if bool(args.execute_zotero) and unique_rows:
         success_count = sum(1 for r in zotero_rows if bool((r.get("zotero_result") or {}).get("ok", False)))
         if success_count == 0:
-            logger.error("Zotero 执行模式下写入成功为 0，停止后续 Obsidian 导出")
+            allow_zero_success = bool(getattr(args, "allow_zotero_zero_success", False))
+            if allow_zero_success:
+                logger.warning("Zotero 执行模式下写入成功为 0，但已启用容错，继续执行 Obsidian 导出")
+            else:
+                logger.error("Zotero 执行模式下写入成功为 0，停止后续 Obsidian 导出")
             fail_samples: list[dict[str, str | int]] = []
             for row in zotero_rows:
                 zr = row.get("zotero_result") if isinstance(row, dict) else None
@@ -435,10 +439,14 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
                 if len(fail_samples) >= 3:
                     break
 
-            print("Zotero 写入成功为 0，请检查 MCP 连接/会话与返回错误后重试。")
+            if allow_zero_success:
+                print("警告：Zotero 写入成功为 0，已按容错模式继续执行后续导出。")
+            else:
+                print("Zotero 写入成功为 0，请检查 MCP 连接/会话与返回错误后重试。")
             if fail_samples:
                 print(json.dumps({"zotero_fail_samples": fail_samples}, ensure_ascii=False, indent=2))
-            return 1
+            if not allow_zero_success:
+                return 1
 
     if unique_rows and zotero_rows:
         zotero_map: dict[str, dict] = {}
@@ -693,6 +701,11 @@ def build_parser() -> argparse.ArgumentParser:
     run_daily.add_argument("--local-pdf-index", default="data/pdf_library_index.json", help="本地 PDF 索引文件")
     run_daily.add_argument("--pdf-timeout", default=30, type=int, help="PDF 下载超时（秒）")
     run_daily.add_argument("--disable-local-pdf-cache", action="store_true", help="禁用本地 PDF 缓存")
+    run_daily.add_argument(
+        "--allow-zotero-zero-success",
+        action="store_true",
+        help="当开启真实 Zotero 写入且成功数为 0 时，不中断流程，继续导出 Obsidian",
+    )
     run_daily.set_defaults(func=cmd_run_daily)
 
     retry = sub.add_parser("retry-failures", help="重试 Zotero 失败队列")

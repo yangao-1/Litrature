@@ -168,9 +168,8 @@ def _create_item_via_mcp(cfg: ZoteroConfig, row: dict[str, Any], timeout_seconds
         except Exception as e:
             return {"ok": False, "status": 0, "body": f"MCP 调用失败: {e}"}
 
-        try:
-            payload = json.loads(text)
-        except json.JSONDecodeError:
+        payload = _parse_mcp_payload(text)
+        if not isinstance(payload, dict):
             return {"ok": False, "status": 0, "body": f"MCP 返回非 JSON: {text[:500]}"}
 
         if isinstance(payload, dict) and payload.get("error"):
@@ -208,6 +207,26 @@ def _create_item_via_mcp(cfg: ZoteroConfig, row: dict[str, Any], timeout_seconds
         if tool_resp.get("ok"):
             return tool_resp
         tried_errors.append(f"tools/call:{tool_name}: {tool_resp.get('body', '')}")
+
+    discovered_tools, list_err = _list_mcp_tools(
+        endpoint=endpoint,
+        headers=headers,
+        timeout_seconds=timeout_seconds,
+    )
+    if discovered_tools:
+        for tool_name in _rank_mcp_tool_candidates(discovered_tools, method_candidates):
+            tool_resp = _call_mcp_tool(
+                endpoint=endpoint,
+                headers=headers,
+                tool_name=tool_name,
+                arguments=request_params,
+                timeout_seconds=timeout_seconds,
+            )
+            if tool_resp.get("ok"):
+                return tool_resp
+            tried_errors.append(f"tools/call:{tool_name}: {tool_resp.get('body', '')}")
+    elif list_err:
+        tried_errors.append(f"tools/list: {list_err}")
 
     return {
         "ok": False,
@@ -314,9 +333,8 @@ def _call_mcp_tool(
     except Exception as e:
         return {"ok": False, "status": 0, "body": f"MCP 调用失败: {e}"}
 
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
+    data = _parse_mcp_payload(text)
+    if not isinstance(data, dict):
         return {"ok": False, "status": 0, "body": f"MCP 返回非 JSON: {text[:500]}"}
 
     if isinstance(data, dict) and data.get("error"):
@@ -351,6 +369,182 @@ def _call_mcp_tool(
     return {"ok": False, "status": 0, "body": f"tools/call 未返回可解析结构: {text[:500]}"}
 
 
+def _list_mcp_tools(endpoint: str, headers: dict[str, str], timeout_seconds: int) -> tuple[list[str], str]:
+    methods = ["tools/list", "tools.list", "mcp/tools/list"]
+    params_variants: list[dict[str, Any] | None] = [{}, {"cursor": ""}, None]
+    errors: list[str] = []
+
+    for method_name in methods:
+        for params in params_variants:
+            payload: dict[str, Any] = {
+                "jsonrpc": "2.0",
+                "id": "litrature-zotero-tools-list",
+                "method": method_name,
+            }
+            if params is not None:
+                payload["params"] = params
+
+            req = Request(
+                endpoint,
+                data=json.dumps(payload).encode("utf-8"),
+                method="POST",
+                headers=headers,
+            )
+
+            try:
+                with urlopen(req, timeout=timeout_seconds) as resp:
+                    text = resp.read().decode("utf-8")
+            except HTTPError as e:
+                errors.append(f"{method_name}: HTTP {e.code}")
+                continue
+            except Exception as e:
+                errors.append(f"{method_name}: {e}")
+                continue
+
+            data = _parse_mcp_payload(text)
+            if not isinstance(data, dict):
+                errors.append(f"{method_name}: non-json")
+                continue
+
+            if data.get("error"):
+                err = data.get("error")
+                try:
+                    err_code = int((err or {}).get("code", 0)) if isinstance(err, dict) else 0
+                except Exception:
+                    err_code = 0
+                if err_code == -32601:
+                    errors.append(f"{method_name}: method not found")
+                    continue
+                errors.append(f"{method_name}: {json.dumps(err, ensure_ascii=False)[:200]}")
+                continue
+
+            result = data.get("result")
+            names = _extract_mcp_tool_names(result)
+            if names:
+                return names, ""
+
+    return [], " | ".join(errors)[:500]
+
+
+def _extract_mcp_tool_names(result: Any) -> list[str]:
+    tools: Any = None
+    if isinstance(result, dict):
+        tools = result.get("tools")
+        if tools is None:
+            tools = result.get("items")
+        if tools is None:
+            tools = result.get("data")
+    elif isinstance(result, list):
+        tools = result
+
+    names: list[str] = []
+    if isinstance(tools, list):
+        for item in tools:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name", "") or item.get("tool", "") or item.get("id", "")).strip()
+            if name:
+                names.append(name)
+    elif isinstance(tools, dict):
+        for key, value in tools.items():
+            key_name = str(key).strip()
+            if key_name:
+                names.append(key_name)
+            if isinstance(value, dict):
+                vname = str(value.get("name", "") or value.get("id", "")).strip()
+                if vname:
+                    names.append(vname)
+
+    uniq: list[str] = []
+    seen: set[str] = set()
+    for name in names:
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        uniq.append(name)
+    return uniq
+
+
+def _rank_mcp_tool_candidates(discovered: list[str], method_candidates: list[str]) -> list[str]:
+    discovered_clean = [str(x).strip() for x in discovered if str(x).strip()]
+    priority: list[str] = []
+
+    seed = _build_mcp_tool_name_candidates(method_candidates)
+    seed_lower = {s.lower() for s in seed}
+    for name in discovered_clean:
+        if name.lower() in seed_lower:
+            priority.append(name)
+
+    for name in discovered_clean:
+        lower = name.lower()
+        if "zotero" in lower and any(k in lower for k in ("create", "add", "import", "item", "paper", "article")):
+            priority.append(name)
+
+    for name in discovered_clean:
+        lower = name.lower()
+        if any(k in lower for k in ("create", "add", "import", "item", "paper", "article")):
+            priority.append(name)
+
+    for name in discovered_clean:
+        priority.append(name)
+
+    uniq: list[str] = []
+    seen: set[str] = set()
+    for name in priority:
+        if name in seen:
+            continue
+        seen.add(name)
+        uniq.append(name)
+    return uniq
+
+
+def _parse_mcp_payload(text: str) -> dict[str, Any] | None:
+    raw = str(text or "").strip()
+    if not raw:
+        return None
+
+    # Standard JSON-RPC response.
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        pass
+
+    # Some MCP servers stream Server-Sent Events (text/event-stream).
+    sse_data: list[str] = []
+    for line in raw.splitlines():
+        ln = line.strip()
+        if not ln.startswith("data:"):
+            continue
+        chunk = ln[5:].strip()
+        if not chunk or chunk == "[DONE]":
+            continue
+        sse_data.append(chunk)
+
+    for chunk in reversed(sse_data):
+        try:
+            parsed = json.loads(chunk)
+        except Exception:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+
+    # Fallback for line-delimited JSON output.
+    for line in reversed(raw.splitlines()):
+        ln = line.strip()
+        if not ln or ln.startswith("event:") or ln.startswith("id:"):
+            continue
+        try:
+            parsed = json.loads(ln)
+        except Exception:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+
+    return None
+
+
 def _normalize_mcp_result(result: dict[str, Any], raw_text: str) -> dict[str, Any]:
     status = _safe_int(result.get("status", result.get("statusCode", 200)), 200)
     parent_key = str(
@@ -358,7 +552,11 @@ def _normalize_mcp_result(result: dict[str, Any], raw_text: str) -> dict[str, An
         or result.get("itemKey", "")
         or result.get("key", "")
         or (result.get("item", {}) or {}).get("key", "")
+        or (result.get("data", {}) or {}).get("key", "")
+        or (result.get("result", {}) or {}).get("key", "")
     ).strip()
+    if not parent_key:
+        parent_key = _extract_mcp_parent_key(raw_text)
 
     attachment = _normalize_mcp_child_status(
         raw=result,
@@ -380,8 +578,10 @@ def _normalize_mcp_result(result: dict[str, Any], raw_text: str) -> dict[str, An
     if isinstance(explicit_ok, bool):
         top_ok = explicit_ok
     else:
-        # No explicit success flag: require a created parent key to avoid false-positive "success".
-        top_ok = status < 400 and has_parent
+        # Some MCP servers do not return a unified success flag or item key field.
+        # For compatibility, treat HTTP-style success as success unless explicit error is present.
+        has_explicit_error = bool(result.get("error") or result.get("errors") or result.get("isError", False))
+        top_ok = status < 400 and not has_explicit_error
 
     if not top_ok and status < 400 and not has_parent:
         status = 0
@@ -394,6 +594,19 @@ def _normalize_mcp_result(result: dict[str, Any], raw_text: str) -> dict[str, An
         "attachment": attachment,
         "note": note,
     }
+
+
+def _extract_mcp_parent_key(text: str) -> str:
+    # Try API-style payload first.
+    key = extract_success_key(text)
+    if key:
+        return key
+
+    # Fallback: scan for Zotero-like 8-char item keys in generic MCP text blocks.
+    match = re.search(r'"key"\s*:\s*"([A-Z0-9]{8})"', text)
+    if match:
+        return str(match.group(1)).strip()
+    return ""
 
 
 def _normalize_mcp_child_status(

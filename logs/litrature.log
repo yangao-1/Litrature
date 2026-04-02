@@ -26,3 +26,9 @@
 2026-04-01 11:42:12 | INFO | litrature | 每日自动流程已完成
 2026-04-01 11:42:12 | INFO | litrature | Obsidian 导出完成: 笔记=1
 2026-04-01 11:50:04 | INFO | litrature | 检索完成: 来源=crossref, 条数=3, 输出=/workspaces/Litrature/data/candidates.raw.jsonl
+2026-04-02 15:27:11 | INFO | litrature | 检索完成: 来源=crossref, 条数=1, 输出=/workspaces/Litrature/data/candidates.raw.jsonl
+2026-04-02 15:27:11 | INFO | litrature | 筛选完成: 输入=/workspaces/Litrature/data/candidates.raw.jsonl, 输出=/workspaces/Litrature/data/screened.latest.jsonl, 保留=1/1
+2026-04-02 15:27:11 | INFO | litrature | 去重完成: 输入=1, 唯一=0, 重复=1
+2026-04-02 15:27:11 | WARNING | litrature | 去重输出为空，Obsidian 导出将无可用条目
+2026-04-02 15:27:11 | INFO | litrature | Obsidian 导出完成: 笔记=0, 新增=0, 覆盖=0, 可读=0, 跳过非待补=0
+2026-04-02 15:27:11 | INFO | litrature | 每日自动流程已完成

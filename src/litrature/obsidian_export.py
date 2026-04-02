@@ -19,6 +19,7 @@ def export_obsidian(
     profile_name: str,
     summarize_timeout: int = 30,
     require_openai_summary: bool = False,
+    only_pending: bool = False,
 ) -> dict[str, Any]:
     ai_enabled = is_openai_enabled()
     if require_openai_summary and not ai_enabled:
@@ -37,6 +38,7 @@ def export_obsidian(
     updated_count = 0
     readable_count = 0
     evidence_counts: dict[str, int] = {}
+    skipped_non_pending = 0
     for row in rows:
         title = str(row.get("title", "")).strip()
         if not title:
@@ -51,6 +53,18 @@ def export_obsidian(
         fname = f"{_safe_name(title)}.md"
         path = notes_dir / fname
         existed_before = path.exists()
+
+        if only_pending:
+            if not existed_before:
+                skipped_non_pending += 1
+                continue
+            try:
+                current_text = path.read_text(encoding="utf-8")
+            except Exception:
+                current_text = ""
+            if "当前为待补全文短卡" not in current_text:
+                skipped_non_pending += 1
+                continue
 
         evidence_level = assess_evidence_level(row)
         evidence_counts[evidence_level] = evidence_counts.get(evidence_level, 0) + 1
@@ -127,6 +141,7 @@ def export_obsidian(
         "notes": len(written_notes),
         "notes_created": created_count,
         "notes_updated": updated_count,
+        "notes_skipped_non_pending": skipped_non_pending,
         "readable_notes": readable_count,
         "ai_summary_mode": "gpt" if ai_enabled else "rule-fallback",
         "daily_report": str(daily),

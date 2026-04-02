@@ -337,13 +337,15 @@ def cmd_obsidian_sync(args: argparse.Namespace) -> int:
         profile_name=args.profile_name,
         summarize_timeout=int(args.summary_timeout),
         require_openai_summary=bool(args.require_openai_summary),
+        only_pending=bool(getattr(args, "only_pending", False)),
     )
     logger.info(
-        "Obsidian 导出完成: 笔记=%d, 新增=%d, 覆盖=%d, 可读=%d",
+        "Obsidian 导出完成: 笔记=%d, 新增=%d, 覆盖=%d, 可读=%d, 跳过非待补=%d",
         result["notes"],
         int(result.get("notes_created", 0)),
         int(result.get("notes_updated", 0)),
         int(result.get("readable_notes", 0)),
+        int(result.get("notes_skipped_non_pending", 0)),
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
@@ -627,6 +629,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     obsidian_sync.add_argument("--profile-name", default="zn-anode-interface", help="写入笔记的配置名称")
     obsidian_sync.add_argument("--summary-timeout", default=30, type=int, help="摘要超时秒数")
+    obsidian_sync.add_argument(
+        "--only-pending",
+        action="store_true",
+        help="仅重写当前为待补全文短卡的笔记（用于二次补全文后重写）",
+    )
     obsidian_sync.add_argument(
         "--require-openai-summary",
         action="store_true",

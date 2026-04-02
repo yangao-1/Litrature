@@ -3,6 +3,7 @@ setlocal
 set REPO_DIR=%~dp0\..\..
 set VAULT_DIR=C:/Users/yangao/OneDrive - UAB/Obsidian/自动文献汇总
 set SOURCE=crossref
+set DAYS_BACK=90
 set ZOTERO_BACKEND=mcp
 set ZOTERO_LIBRARY_TYPE=users
 set ZOTERO_LIBRARY_ID=
@@ -13,7 +14,7 @@ set ZOTERO_MCP_METHOD=zotero.create_item
 set SERPAPI_API_KEY=REPLACE_WITH_YOUR_SERPAPI_API_KEY
 set UNPAYWALL_EMAIL=REPLACE_WITH_YOUR_UNPAYWALL_EMAIL
 set OPENAI_API_KEY=REPLACE_WITH_YOUR_OPENAI_API_KEY
-set OPENAI_MODEL=gpt-4.1-mini
+set OPENAI_MODEL=gpt-4.1
 set LOCAL_PDF_DIR=data/pdf_library
 
 if /I "%ZOTERO_BACKEND%"=="api" (
@@ -51,7 +52,7 @@ if not exist .venv (
 
 set PYTHONPATH=src
 .venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe -m litrature run-daily --source "%SOURCE%" --limit 20 --max-total 120 --vault-dir "%VAULT_DIR%" --zotero-backend "%ZOTERO_BACKEND%" --local-pdf-dir "%LOCAL_PDF_DIR%" --reset-dedup-index --execute-zotero --require-openai-summary
+.venv\Scripts\python.exe -m litrature run-daily --source "%SOURCE%" --days-back %DAYS_BACK% --limit 20 --max-total 120 --vault-dir "%VAULT_DIR%" --zotero-backend "%ZOTERO_BACKEND%" --local-pdf-dir "%LOCAL_PDF_DIR%" --reset-dedup-index --execute-zotero --require-openai-summary
 
 echo 完成：已执行每日流程（真实模式）。
 endlocal

@@ -3,6 +3,7 @@ Param(
   [string]$VaultDir = "C:/Users/yangao/OneDrive - UAB/Obsidian/自动文献汇总",
   [ValidateSet("crossref", "google_scholar", "mixed")]
   [string]$Source = "crossref",
+  [int]$DaysBack = 90,
   [int]$Limit = 20,
   [int]$MaxTotal = 120,
   [bool]$ExecuteZotero = $true,
@@ -18,7 +19,7 @@ Param(
   [string]$SerpApiKey = "REPLACE_WITH_YOUR_SERPAPI_API_KEY",
   [string]$UnpaywallEmail = "REPLACE_WITH_YOUR_UNPAYWALL_EMAIL",
   [string]$OpenAIApiKey = "REPLACE_WITH_YOUR_OPENAI_API_KEY",
-  [string]$OpenAIModel = "gpt-4.1-mini",
+  [string]$OpenAIModel = "gpt-4.1",
   [string]$LocalPdfDir = "data/pdf_library"
 )
 
@@ -51,6 +52,7 @@ if (-Not (Test-Path $pythonExe)) {
 $argsList = @(
   "-m", "litrature", "run-daily",
   "--source", "$Source",
+  "--days-back", "$DaysBack",
   "--limit", "$Limit",
   "--max-total", "$MaxTotal",
   "--vault-dir", "$VaultDir",

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from datetime import datetime, timedelta
 from dataclasses import dataclass
 from html import unescape
 from typing import Any
@@ -18,6 +19,7 @@ class SearchOptions:
     limit: int = 20
     max_total: int = 100
     timeout_seconds: int = 20
+    days_back: int = 0
 
 
 def _strip_html(text: str) -> str:
@@ -26,23 +28,31 @@ def _strip_html(text: str) -> str:
     return unescape(clean)
 
 
-def _build_crossref_url(query: str, limit: int) -> str:
-    return (
+def _build_crossref_url(query: str, limit: int, days_back: int = 0) -> str:
+    base = (
         "https://api.crossref.org/works"
         f"?query.bibliographic={quote(query)}"
         "&sort=published&order=desc"
         f"&rows={limit}"
     )
+    if days_back and days_back > 0:
+        from_date = (datetime.utcnow() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+        base += f"&filter=from-pub-date:{from_date}"
+    return base
 
 
-def _build_serpapi_scholar_url(query: str, limit: int, api_key: str) -> str:
-    return (
+def _build_serpapi_scholar_url(query: str, limit: int, api_key: str, days_back: int = 0) -> str:
+    base = (
         "https://serpapi.com/search.json"
         "?engine=google_scholar"
         f"&q={quote(query)}"
         f"&num={limit}"
         f"&api_key={quote(api_key)}"
     )
+    if days_back and days_back > 0:
+        year_from = (datetime.utcnow() - timedelta(days=days_back)).year
+        base += f"&as_ylo={year_from}"
+    return base
 
 
 def _first_year(item: dict[str, Any]) -> int | None:
@@ -270,9 +280,14 @@ def search_candidates(profile: ResearchProfile, options: SearchOptions) -> list[
     for query in query_list:
         for source_name in source_chain:
             if source_name == "crossref":
-                url = _build_crossref_url(query=query, limit=options.limit)
+                url = _build_crossref_url(query=query, limit=options.limit, days_back=options.days_back)
             else:
-                url = _build_serpapi_scholar_url(query=query, limit=options.limit, api_key=serpapi_key)
+                url = _build_serpapi_scholar_url(
+                    query=query,
+                    limit=options.limit,
+                    api_key=serpapi_key,
+                    days_back=options.days_back,
+                )
 
             with urlopen(url, timeout=options.timeout_seconds) as resp:
                 payload = json.loads(resp.read().decode("utf-8"))

@@ -162,6 +162,14 @@ Google Scholar 说明：
 混合检索说明：
 - `source=mixed` 会按每个查询依次拉取 Crossref 与 Google Scholar，并在进入后续筛选前统一去重。
 
+检索范围与天数：
+- `--days-back N` 可限制只检索最近 N 天（`0` 表示不限制）。
+- Windows 脚本默认 `DAYS_BACK/DaysBack=90`，你可按需要调整为 30/60/180 等。
+
+模型配置：
+- 默认模型已提升为 `gpt-4.1`。
+- 你可在脚本中修改 `OPENAI_MODEL`（bat）或 `OpenAIModel`（ps1）为你可用的更高模型。
+
 去重与 Obsidian 导出优化：
 - Windows 一键脚本默认附带 `--reset-dedup-index`，避免历史索引导致“唯一条数=0”。
 - 当 `data/zotero.synced.jsonl` 为空时，程序会自动回退使用 `data/candidates.unique.jsonl` 生成 Obsidian 笔记，确保 Obsidian 侧仍有输出。

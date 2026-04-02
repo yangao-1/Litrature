@@ -26,7 +26,7 @@ def generate_note_markdown(row: dict[str, Any], timeout_seconds: int = 30) -> st
     if not api_key:
         return _rule_note_markdown(row, template, zotero_key=zotero_key)
 
-    model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+    model = os.getenv("OPENAI_MODEL", "gpt-4.1")
     abstract = str(row.get("abstract", "")).strip()
     paper_excerpt = _fetch_paper_excerpt(row, timeout_seconds=timeout_seconds)
 
@@ -68,7 +68,7 @@ def generate_report_markdown(
     if not api_key:
         return _rule_report_markdown(note_titles=note_titles, report_type=report_type)
 
-    model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+    model = os.getenv("OPENAI_MODEL", "gpt-4.1")
     today = datetime.now().strftime("%Y-%m-%d")
     week_tag = datetime.now().strftime("%Y-W%W")
     rows_payload = [

@@ -126,6 +126,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         limit=int(args.limit),
         max_total=int(args.max_total),
         timeout_seconds=int(args.timeout),
+        days_back=int(args.days_back),
     )
 
     try:
@@ -360,6 +361,7 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
     fetch_args = argparse.Namespace(
         **base.__dict__,
         source=args.source,
+        days_back=args.days_back,
         limit=args.limit,
         max_total=args.max_total,
         timeout=args.timeout,
@@ -548,6 +550,7 @@ def build_parser() -> argparse.ArgumentParser:
     fetch.add_argument("--source", default="crossref", help="检索源，支持 crossref / google_scholar / mixed")
     fetch.add_argument("--limit", default=20, type=int, help="拉取条数上限")
     fetch.add_argument("--max-total", default=100, type=int, help="多查询合并后的总条数上限")
+    fetch.add_argument("--days-back", default=0, type=int, help="仅检索最近 N 天（0 表示不限制）")
     fetch.add_argument("--timeout", default=20, type=int, help="网络超时（秒）")
     fetch.add_argument(
         "--output",
@@ -618,6 +621,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_daily.add_argument("--source", default="crossref", help="检索源（crossref / google_scholar / mixed）")
     run_daily.add_argument("--limit", default=20, type=int, help="单查询拉取上限")
     run_daily.add_argument("--max-total", default=100, type=int, help="合并总条数上限")
+    run_daily.add_argument("--days-back", default=0, type=int, help="仅检索最近 N 天（0 表示不限制）")
     run_daily.add_argument("--timeout", default=20, type=int, help="网络超时")
     run_daily.add_argument("--raw-output", default="data/candidates.raw.jsonl", help="原始候选输出")
     run_daily.add_argument("--screen-output", default="data/screened.latest.jsonl", help="筛选输出")

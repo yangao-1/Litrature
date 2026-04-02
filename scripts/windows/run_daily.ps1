@@ -44,7 +44,7 @@ function Test-McpEndpoint {
 
   try {
     $probeBody = '{"jsonrpc":"2.0","id":"litrature-probe","method":"ping","params":{}}'
-    Invoke-WebRequest -Uri $Endpoint -Method POST -ContentType "application/json" -Headers @{ "Accept" = "application/json, text/event-stream" } -Body $probeBody -TimeoutSec 3 | Out-Null
+    Invoke-WebRequest -Uri $Endpoint -Method POST -ContentType "application/json" -Headers @{ "Accept" = "application/json, text/event-stream" } -Body $probeBody -TimeoutSec 3 -UseBasicParsing -ErrorAction Stop | Out-Null
     return $true
   } catch {
     return $false

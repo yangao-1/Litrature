@@ -226,6 +226,8 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
 
     ok_count = 0
     fail_count = 0
+    note_ok_count = 0
+    attachment_ok_count = 0
     synced_rows: list[dict] = []
     fail_samples: list[dict[str, str | int]] = []
     pdf_cache_dir = app_cfg.workspace / args.local_pdf_dir
@@ -277,6 +279,10 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
 
         if result.get("ok"):
             ok_count += 1
+            if row_out["zotero_note_ok"]:
+                note_ok_count += 1
+            if row_out["zotero_attachment_ok"]:
+                attachment_ok_count += 1
             synced_rows.append(row_out)
             continue
 
@@ -309,6 +315,8 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
                 "待同步条数": len(candidates),
                 "成功条数": ok_count,
                 "失败条数": fail_count,
+                "笔记成功条数": note_ok_count,
+                "附件成功条数": attachment_ok_count,
                 "失败重试队列": str(queue_path),
                 "同步输出": str(out_path),
                 "本地PDF目录": str(pdf_cache_dir),

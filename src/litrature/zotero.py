@@ -591,10 +591,11 @@ def _try_known_zotero_tools(
             break
 
     if write_note_name and parent_key:
+        note_markdown = _build_note_markdown_for_mcp(row=row, timeout_seconds=timeout_seconds)
         note_args = {
             "action": "create",
             "parentKey": parent_key,
-            "content": note_html,
+            "content": note_markdown,
             "tags": ["auto-import"],
         }
         note_resp = _call_mcp_tool(
@@ -604,6 +605,22 @@ def _try_known_zotero_tools(
             arguments=note_args,
             timeout_seconds=timeout_seconds,
         )
+
+        # Fallback: some servers accept HTML better than Markdown.
+        if (not bool(note_resp.get("ok", False))) and note_html:
+            note_args_html = {
+                "action": "create",
+                "parentKey": parent_key,
+                "content": note_html,
+                "tags": ["auto-import"],
+            }
+            note_resp = _call_mcp_tool(
+                endpoint=endpoint,
+                headers=headers,
+                tool_name=write_note_name,
+                arguments=note_args_html,
+                timeout_seconds=timeout_seconds,
+            )
 
     return {
         "ok": True,
@@ -921,6 +938,31 @@ def _build_note_summary(row: dict[str, Any], timeout_seconds: int) -> str:
         f"<p><b>Title:</b> {title}</p>"
         f"<p><b>DOI:</b> {doi}</p>"
         f"<pre>{content}</pre>"
+    )
+
+
+def _build_note_markdown_for_mcp(row: dict[str, Any], timeout_seconds: int) -> str:
+    try:
+        from .summarizer import generate_note_markdown
+
+        md = generate_note_markdown(row, timeout_seconds=min(timeout_seconds, 20))
+        if md and str(md).strip():
+            return str(md).strip()
+    except Exception:
+        pass
+
+    title = str(row.get("title", "")).strip() or "Untitled"
+    doi = str(row.get("doi", "")).strip()
+    source_url = str(row.get("source_url", "")).strip()
+    abstract = str(row.get("abstract", "")).strip()
+    if len(abstract) > 2000:
+        abstract = abstract[:2000]
+    return (
+        f"# {title}\n\n"
+        f"- DOI: {doi}\n"
+        f"- URL: {source_url}\n\n"
+        "## 摘要\n"
+        f"{abstract if abstract else '无摘要'}\n"
     )
 
 

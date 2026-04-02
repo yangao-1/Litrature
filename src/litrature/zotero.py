@@ -196,6 +196,19 @@ def _create_item_via_mcp(cfg: ZoteroConfig, row: dict[str, Any], timeout_seconds
 
         return _normalize_mcp_result(result=result, raw_text=text)
 
+    tool_name_candidates = _build_mcp_tool_name_candidates(method_candidates)
+    for tool_name in tool_name_candidates:
+        tool_resp = _call_mcp_tool(
+            endpoint=endpoint,
+            headers=headers,
+            tool_name=tool_name,
+            arguments=request_params,
+            timeout_seconds=timeout_seconds,
+        )
+        if tool_resp.get("ok"):
+            return tool_resp
+        tried_errors.append(f"tools/call:{tool_name}: {tool_resp.get('body', '')}")
+
     return {
         "ok": False,
         "status": 0,
@@ -205,7 +218,9 @@ def _create_item_via_mcp(cfg: ZoteroConfig, row: dict[str, Any], timeout_seconds
 
 def _build_mcp_method_candidates(method: str) -> list[str]:
     base = method.strip() or "zotero.create_item"
-    candidates = [base]
+    candidates: list[str] = []
+    if base.lower() != "auto":
+        candidates.append(base)
 
     if "." in base:
         namespace, action = base.rsplit(".", 1)
@@ -237,6 +252,103 @@ def _build_mcp_method_candidates(method: str) -> list[str]:
         seen.add(m2)
         uniq.append(m2)
     return uniq
+
+
+def _build_mcp_tool_name_candidates(method_candidates: list[str]) -> list[str]:
+    candidates = [
+        "zotero.create_item",
+        "zotero.createItem",
+        "zotero_create_item",
+        "zotero-create-item",
+        "create_item",
+        "createItem",
+    ]
+    for m in method_candidates:
+        m2 = str(m).strip()
+        if not m2:
+            continue
+        candidates.append(m2)
+        candidates.append(m2.replace(".", "_"))
+        candidates.append(m2.replace(".", "-"))
+
+    uniq: list[str] = []
+    seen: set[str] = set()
+    for name in candidates:
+        n = str(name).strip()
+        if not n or n in seen:
+            continue
+        seen.add(n)
+        uniq.append(n)
+    return uniq
+
+
+def _call_mcp_tool(
+    endpoint: str,
+    headers: dict[str, str],
+    tool_name: str,
+    arguments: dict[str, Any],
+    timeout_seconds: int,
+) -> dict[str, Any]:
+    payload = {
+        "jsonrpc": "2.0",
+        "id": "litrature-zotero-tool",
+        "method": "tools/call",
+        "params": {
+            "name": tool_name,
+            "arguments": arguments,
+        },
+    }
+
+    req = Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers=headers,
+    )
+
+    try:
+        with urlopen(req, timeout=timeout_seconds) as resp:
+            text = resp.read().decode("utf-8")
+    except HTTPError as e:
+        return {"ok": False, "status": e.code, "body": e.read().decode("utf-8", errors="ignore")}
+    except Exception as e:
+        return {"ok": False, "status": 0, "body": f"MCP 调用失败: {e}"}
+
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return {"ok": False, "status": 0, "body": f"MCP 返回非 JSON: {text[:500]}"}
+
+    if isinstance(data, dict) and data.get("error"):
+        return {"ok": False, "status": 0, "body": json.dumps(data.get("error"), ensure_ascii=False)}
+
+    result = data.get("result") if isinstance(data, dict) else None
+    if not isinstance(result, dict):
+        return {"ok": False, "status": 0, "body": f"tools/call 返回缺少 result: {text[:500]}"}
+
+    if bool(result.get("isError", False)):
+        return {"ok": False, "status": 0, "body": json.dumps(result, ensure_ascii=False)[:500]}
+
+    structured = result.get("structuredContent")
+    if isinstance(structured, dict):
+        return _normalize_mcp_result(result=structured, raw_text=text)
+
+    content = result.get("content")
+    if isinstance(content, list):
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            txt = str(block.get("text", "")).strip()
+            if not txt:
+                continue
+            try:
+                parsed = json.loads(txt)
+            except Exception:
+                continue
+            if isinstance(parsed, dict):
+                return _normalize_mcp_result(result=parsed, raw_text=text)
+
+    return {"ok": False, "status": 0, "body": f"tools/call 未返回可解析结构: {text[:500]}"}
 
 
 def _normalize_mcp_result(result: dict[str, Any], raw_text: str) -> dict[str, Any]:

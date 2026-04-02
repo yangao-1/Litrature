@@ -33,6 +33,8 @@ def export_obsidian(
     week_tag = datetime.now().strftime("%Y-W%W")
 
     written_notes = []
+    created_count = 0
+    updated_count = 0
     for row in rows:
         title = str(row.get("title", "")).strip()
         if not title:
@@ -46,6 +48,7 @@ def export_obsidian(
 
         fname = f"{_safe_name(title)}.md"
         path = notes_dir / fname
+        existed_before = path.exists()
 
         ai_note_markdown = generate_note_markdown(row, timeout_seconds=summarize_timeout)
         content = (
@@ -63,6 +66,10 @@ def export_obsidian(
         )
         path.write_text(content, encoding="utf-8")
         written_notes.append(path)
+        if existed_before:
+            updated_count += 1
+        else:
+            created_count += 1
 
     daily = reports_dir / f"日报-{today}.md"
     note_titles = [p.name[:-3] for p in written_notes]
@@ -104,6 +111,8 @@ def export_obsidian(
 
     return {
         "notes": len(written_notes),
+        "notes_created": created_count,
+        "notes_updated": updated_count,
         "ai_summary_mode": "gpt" if ai_enabled else "rule-fallback",
         "daily_report": str(daily),
         "weekly_report": str(weekly),

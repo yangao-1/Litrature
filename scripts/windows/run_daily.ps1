@@ -28,6 +28,13 @@ $ErrorActionPreference = "Stop"
 
 Set-Location $RepoDir
 
+# Ensure Obsidian vault path exists and surface the exact destination in logs.
+$resolvedVaultDir = $VaultDir
+if (-not (Test-Path $resolvedVaultDir)) {
+  New-Item -ItemType Directory -Path $resolvedVaultDir -Force | Out-Null
+}
+Write-Host "Obsidian 导出目录: $resolvedVaultDir"
+
 function Resolve-PythonLauncher {
   if (Get-Command py -ErrorAction SilentlyContinue) { return "py -3" }
   if (Get-Command python -ErrorAction SilentlyContinue) { return "python" }
@@ -55,9 +62,9 @@ $argsList = @(
   "--days-back", "$DaysBack",
   "--limit", "$Limit",
   "--max-total", "$MaxTotal",
-  "--vault-dir", "$VaultDir",
+  "--vault-dir", "$resolvedVaultDir",
   "--zotero-backend", "$ZoteroBackend",
-  "--local-pdf-dir", "$LocalPdfDir",
+  "--disable-local-pdf-cache",
   "--reset-dedup-index",
   "--require-openai-summary"
 )
@@ -103,4 +110,4 @@ if ($OpenAIApiKey -ne "REPLACE_WITH_YOUR_OPENAI_API_KEY") {
 
 $env:PYTHONPATH = "src"
 & $pythonExe @argsList
-Write-Host "完成：已执行每日流程。"
+Write-Host "完成：已执行每日流程（Zotero真实写入 + Obsidian导出，不单独缓存PDF）。"

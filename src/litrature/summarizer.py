@@ -31,8 +31,13 @@ def generate_note_markdown(row: dict[str, Any], timeout_seconds: int = 30) -> st
     paper_excerpt = _fetch_paper_excerpt(row, timeout_seconds=timeout_seconds)
 
     prompt = (
-        "你是锌负极/界面研究助手。请严格按模板结构输出 Markdown，不要新增或删除标题。"
-        "要点必须具体、可验证，避免空话。\n\n"
+        "你是严谨的电池机理论文分析助手。请严格按模板结构输出 Markdown，不要新增或删除标题。"
+        "必须遵循：\n"
+        "1) 只基于给定信息，不得编造未提供的数据或图号；\n"
+        "2) 每个关键判断都要写证据来源（摘要/全文节选/推断）；\n"
+        "3) 信息不足时明确写‘证据不足’；\n"
+        "4) 用中文输出，术语可中英混排；\n"
+        "5) 风格要具体、可执行，避免空话。\n\n"
         "[模板]\n"
         f"{template}\n\n"
         "[文章信息]\n"
@@ -82,21 +87,27 @@ def generate_report_markdown(
         for r in rows
     ]
 
+    report_title = "自动文献日报" if report_type == "daily" else "自动文献周报"
     prompt = (
-        "你是研究秘书助手，请输出结构化 Markdown 报告。"
-        "要求：简明但有洞察，必须给出可执行下一步。\n"
+        "你是研究秘书助手，请输出高质量结构化 Markdown 报告。"
+        "要求：\n"
+        "1) 先结论后细节；\n"
+        "2) 对每条判断标注依据（rows 字段）；\n"
+        "3) 必须给出可执行行动清单；\n"
+        "4) 信息不足处写明风险，不要凑字数。\n"
         f"report_type: {report_type}\n"
         f"today: {today}\n"
         f"week_tag: {week_tag}\n"
         f"notes_count: {len(note_titles)}\n"
         f"note_titles: {json.dumps(note_titles, ensure_ascii=False)}\n"
         f"rows: {json.dumps(rows_payload, ensure_ascii=False)}\n\n"
-        "输出格式：\n"
-        "# 标题\n"
-        "## 本期概览\n"
-        "## 机制主线\n"
-        "## 重点论文\n"
-        "## 风险与空白\n"
+        "输出格式（标题必须一致）：\n"
+        f"# {report_title}\n"
+        "## 执行摘要\n"
+        "## 本期新增与更新\n"
+        "## 机制主线进展\n"
+        "## 高价值论文卡片\n"
+        "## 风险与证据空白\n"
         "## 下一步行动\n"
     )
 
@@ -179,19 +190,36 @@ def _call_chat_completion(prompt: str, api_key: str, model: str, timeout_seconds
 def _load_note_template() -> str:
     default = (
         "# ${title}\n\n"
-        "## 研究核心 (Research Core)\n"
-        "### 内容 (Content)\n\n"
-        "### 创新点 (Innovations)\n\n"
-        "### 不足 (Shortcomings)\n\n"
-        "## 研究内容 (Research Content)\n"
-        "### 数据 (Data)\n\n"
-        "### 方法 (Method)\n\n"
-        "### 实验 (Experiment)\n\n"
-        "### 结论 (Conclusion)\n\n"
-        "## AI 总结 (AI Summary)\n"
-        "### 关键记录 (Key Records)\n\n"
-        "### 待解决 (To be resolved)\n\n"
-        "### 思想启发 (Thought Inspiration)\n"
+        "### 🧭 阅读协议\n"
+        "- 文本可读性：\n"
+        "- 证据优先级：\n"
+        "- 解析风险提示：\n\n"
+        "### 📖 粗读筛选\n"
+        "- 期刊影响力：\n"
+        "- 研究问题重要性：\n"
+        "- 方法新颖性：\n"
+        "- 数据完整性：\n"
+        "- 结论明确性：\n\n"
+        "### 💡 创新点\n"
+        "- 科学问题：\n"
+        "- 研究工具/方法：\n"
+        "- 研究思路：\n"
+        "- 理论/机制：\n\n"
+        "### 📝 笔记原子化\n"
+        "#### ⚡ 性能\n"
+        "-\n"
+        "#### 🔬 机制\n"
+        "-\n"
+        "#### ✨ 理论\n"
+        "-\n\n"
+        "### 🤔 思考\n"
+        "- 主要优点：\n"
+        "- 主要缺点：\n"
+        "- 疑问与争议：\n"
+        "- 研究启发：\n\n"
+        "### 🧮 严格评分\n"
+        "- 总分（0-100）：\n"
+        "- 一句话结论：\n"
     )
     path = Path("prompts/ai_note_template.md")
     if not path.exists():
@@ -269,24 +297,28 @@ def _rule_report_markdown(note_titles: list[str], report_type: str) -> str:
     lines = [
         f"# {title}",
         "",
-        "## 本期概览",
-        f"- 新增笔记数量: {len(note_titles)}",
+        "## 执行摘要",
+        f"- 本期处理条目: {len(note_titles)}",
         "- 报告模式: 规则兜底（未调用 GPT）。",
         "",
-        "## 机制主线",
+        "## 本期新增与更新",
+        f"- 笔记条目数: {len(note_titles)}",
+        "",
+        "## 机制主线进展",
         "- 关注 Zn2+ 溶剂化/去溶剂化、界面稳定层、HER 抑制协同机制。",
         "",
-        "## 重点论文",
+        "## 高价值论文卡片",
     ]
     lines.extend([f"- {name}" for name in note_titles] or ["- 无新增条目"]) 
     lines.extend(
         [
             "",
-            "## 风险与空白",
+            "## 风险与证据空白",
             "- 缺少全文证据时，结论置信度偏低。",
             "",
             "## 下一步行动",
             "- 优先补抓可获取 PDF 的条目并二次总结。",
+            "- 对高相关条目补充对照实验与机制证据摘录。",
         ]
     )
     return "\n".join(lines)

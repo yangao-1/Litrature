@@ -46,13 +46,15 @@ if /I "%SOURCE%"=="mixed" (
 )
 
 cd /d %REPO_DIR%
+if not exist "%VAULT_DIR%" mkdir "%VAULT_DIR%"
+echo Obsidian 导出目录: %VAULT_DIR%
 if not exist .venv (
   python -m venv .venv
 )
 
 set PYTHONPATH=src
 .venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe -m litrature run-daily --source "%SOURCE%" --days-back %DAYS_BACK% --limit 20 --max-total 120 --vault-dir "%VAULT_DIR%" --zotero-backend "%ZOTERO_BACKEND%" --local-pdf-dir "%LOCAL_PDF_DIR%" --reset-dedup-index --execute-zotero --require-openai-summary
+.venv\Scripts\python.exe -m litrature run-daily --source "%SOURCE%" --days-back %DAYS_BACK% --limit 20 --max-total 120 --vault-dir "%VAULT_DIR%" --zotero-backend "%ZOTERO_BACKEND%" --disable-local-pdf-cache --reset-dedup-index --execute-zotero --require-openai-summary
 
-echo 完成：已执行每日流程（真实模式）。
+echo 完成：已执行每日流程（真实模式，不单独缓存PDF）。
 endlocal

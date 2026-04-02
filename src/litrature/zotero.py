@@ -156,7 +156,7 @@ def _create_item_via_mcp(cfg: ZoteroConfig, row: dict[str, Any], timeout_seconds
     try:
         payload = json.loads(text)
     except json.JSONDecodeError:
-        return {"ok": True, "status": 200, "body": text}
+        return {"ok": False, "status": 0, "body": f"MCP 返回非 JSON: {text[:500]}"}
 
     if isinstance(payload, dict) and payload.get("error"):
         return {"ok": False, "status": 0, "body": json.dumps(payload.get("error"), ensure_ascii=False)}
@@ -166,7 +166,7 @@ def _create_item_via_mcp(cfg: ZoteroConfig, row: dict[str, Any], timeout_seconds
         result = result[0]
 
     if not isinstance(result, dict):
-        return {"ok": True, "status": 200, "body": text}
+        return {"ok": False, "status": 0, "body": f"MCP 返回缺少可解析 result: {text[:500]}"}
 
     return _normalize_mcp_result(result=result, raw_text=text)
 
@@ -195,7 +195,17 @@ def _normalize_mcp_result(result: dict[str, Any], raw_text: str) -> dict[str, An
         body_key="note_body",
     )
 
-    top_ok = bool(result.get("ok", status < 400))
+    explicit_ok = result.get("ok")
+    has_parent = bool(parent_key)
+    if isinstance(explicit_ok, bool):
+        top_ok = explicit_ok
+    else:
+        # No explicit success flag: require a created parent key to avoid false-positive "success".
+        top_ok = status < 400 and has_parent
+
+    if not top_ok and status < 400 and not has_parent:
+        status = 0
+
     return {
         "ok": top_ok,
         "status": status,

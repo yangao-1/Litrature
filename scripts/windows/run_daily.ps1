@@ -7,7 +7,7 @@ Param(
   [int]$MaxTotal = 120,
   [bool]$ExecuteZotero = $true,
   [ValidateSet("api", "mcp")]
-  [string]$ZoteroBackend = "api",
+  [string]$ZoteroBackend = "mcp",
   [ValidateSet("users", "groups")]
   [string]$ZoteroLibraryType = "users",
   [string]$ZoteroLibraryId = "",
@@ -18,7 +18,8 @@ Param(
   [string]$SerpApiKey = "REPLACE_WITH_YOUR_SERPAPI_API_KEY",
   [string]$UnpaywallEmail = "REPLACE_WITH_YOUR_UNPAYWALL_EMAIL",
   [string]$OpenAIApiKey = "REPLACE_WITH_YOUR_OPENAI_API_KEY",
-  [string]$OpenAIModel = "gpt-4.1-mini"
+  [string]$OpenAIModel = "gpt-4.1-mini",
+  [string]$LocalPdfDir = "data/pdf_library"
 )
 
 Set-StrictMode -Version Latest
@@ -54,6 +55,7 @@ $argsList = @(
   "--max-total", "$MaxTotal",
   "--vault-dir", "$VaultDir",
   "--zotero-backend", "$ZoteroBackend",
+  "--local-pdf-dir", "$LocalPdfDir",
   "--reset-dedup-index",
   "--require-openai-summary"
 )

@@ -128,6 +128,7 @@ def _create_item_via_mcp(cfg: ZoteroConfig, row: dict[str, Any], timeout_seconds
             "item": _build_item(row),
             "row": row,
             "attach_pdf": True,
+            "local_pdf_path": str(row.get("local_pdf_path", "")).strip(),
             "note_html": note_html,
         },
     }
@@ -364,6 +365,10 @@ def _resolve_pdf_url(row: dict[str, Any], timeout_seconds: int) -> str:
             return candidate
 
     return ""
+
+
+def resolve_pdf_url(row: dict[str, Any], timeout_seconds: int = 20) -> str:
+    return _resolve_pdf_url(row=row, timeout_seconds=timeout_seconds)
 
 
 def _resolve_pdf_from_openalex(doi: str, timeout_seconds: int) -> str:

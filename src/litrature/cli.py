@@ -11,10 +11,11 @@ from .dedup import deduplicate_rows, save_index
 from .io_utils import read_jsonl, write_jsonl
 from .logging_utils import setup_logger
 from .obsidian_export import export_obsidian
+from .pdf_cache import cache_pdf_for_row
 from .retry_queue import append_failure
 from .screening import CandidateRecord, screen_candidate
 from .search import SearchOptions, search_candidates
-from .zotero import ZoteroConfig, create_item, dry_run_item, extract_success_key
+from .zotero import ZoteroConfig, create_item, dry_run_item, extract_success_key, resolve_pdf_url
 
 
 def cmd_plan(args: argparse.Namespace) -> int:
@@ -226,21 +227,46 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
     fail_count = 0
     synced_rows: list[dict] = []
     fail_samples: list[dict[str, str | int]] = []
+    pdf_cache_dir = app_cfg.workspace / args.local_pdf_dir
+    use_local_pdf_cache = not bool(args.disable_local_pdf_cache)
 
     for row in candidates:
+        local_pdf_ok = False
+        local_pdf_path = ""
+        resolved_pdf_url = resolve_pdf_url(row, timeout_seconds=int(args.pdf_timeout))
+        if use_local_pdf_cache and resolved_pdf_url:
+            try:
+                local_pdf_ok, local_pdf_path = cache_pdf_for_row(
+                    row=row,
+                    pdf_url=resolved_pdf_url,
+                    out_dir=pdf_cache_dir,
+                    timeout_seconds=int(args.pdf_timeout),
+                )
+            except Exception:
+                local_pdf_ok = False
+                local_pdf_path = ""
+
+        row_for_sync = dict(row)
+        if resolved_pdf_url:
+            row_for_sync["pdf_url"] = resolved_pdf_url
+        if local_pdf_path:
+            row_for_sync["local_pdf_path"] = local_pdf_path
+
         if execute:
             if backend == "api" and (not library_id or not api_key):
                 print("缺少环境变量 ZOTERO_USER_ID/ZOTERO_LIBRARY_ID 或 ZOTERO_API_KEY，无法执行真实写入。")
                 return 1
-            result = create_item(cfg, row)
+            result = create_item(cfg, row_for_sync)
         else:
-            result = dry_run_item(row)
+            result = dry_run_item(row_for_sync)
 
-        row_out = dict(row)
+        row_out = dict(row_for_sync)
         row_out["zotero_result"] = result
         row_out["zotero_key"] = ""
         row_out["zotero_attachment_ok"] = bool(result.get("attachment", {}).get("ok", False))
         row_out["zotero_note_ok"] = bool(result.get("note", {}).get("ok", False))
+        row_out["local_pdf_cached"] = bool(local_pdf_ok)
+        row_out["local_pdf_path"] = local_pdf_path
 
         if result.get("ok") and bool(args.execute):
             body = str(result.get("body", ""))
@@ -282,6 +308,7 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
                 "失败条数": fail_count,
                 "失败重试队列": str(queue_path),
                 "同步输出": str(out_path),
+                "本地PDF目录": str(pdf_cache_dir),
                 "失败示例": fail_samples,
             },
             ensure_ascii=False,
@@ -362,6 +389,9 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
         retry_queue=args.retry_queue,
         execute=args.execute_zotero,
         zotero_backend=args.zotero_backend,
+        local_pdf_dir=args.local_pdf_dir,
+        pdf_timeout=args.pdf_timeout,
+        disable_local_pdf_cache=args.disable_local_pdf_cache,
         output=args.zotero_output,
     )
     if cmd_zotero_sync(zotero_args) != 0:
@@ -556,6 +586,9 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["api", "mcp"],
         help="Zotero 写入后端：api 或 mcp",
     )
+    zotero_sync.add_argument("--local-pdf-dir", default="data/pdf_library", help="本地 PDF 数据库目录")
+    zotero_sync.add_argument("--pdf-timeout", default=30, type=int, help="PDF 下载超时（秒）")
+    zotero_sync.add_argument("--disable-local-pdf-cache", action="store_true", help="禁用本地 PDF 缓存")
     zotero_sync.set_defaults(func=cmd_zotero_sync)
 
     default_vault_dir = os.getenv("OBSIDIAN_VAULT_DIR", "obsidian_export")
@@ -604,6 +637,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="要求必须配置 OPENAI_API_KEY；未配置则失败退出",
     )
+    run_daily.add_argument("--local-pdf-dir", default="data/pdf_library", help="本地 PDF 数据库目录")
+    run_daily.add_argument("--pdf-timeout", default=30, type=int, help="PDF 下载超时（秒）")
+    run_daily.add_argument("--disable-local-pdf-cache", action="store_true", help="禁用本地 PDF 缓存")
     run_daily.set_defaults(func=cmd_run_daily)
 
     retry = sub.add_parser("retry-failures", help="重试 Zotero 失败队列")

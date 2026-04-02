@@ -426,6 +426,10 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
                 for field in ("zotero_result", "zotero_key", "zotero_attachment_ok", "zotero_note_ok"):
                     if field in z_row:
                         merged[field] = z_row[field]
+                for field in ("pdf_url", "local_pdf_path"):
+                    value = str(z_row.get(field, "")).strip()
+                    if value:
+                        merged[field] = value
             merged_rows.append(merged)
 
         obsidian_input = "data/obsidian.input.jsonl"

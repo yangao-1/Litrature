@@ -234,6 +234,14 @@ def _fetch_paper_excerpt(row: dict[str, Any], timeout_seconds: int = 30) -> str:
     abstract = str(row.get("abstract", "")).strip()
     pdf_url = str(row.get("pdf_url", "")).strip()
     if not pdf_url:
+        try:
+            from .zotero import resolve_pdf_url
+
+            pdf_url = resolve_pdf_url(row=row, timeout_seconds=min(timeout_seconds, 20))
+        except Exception:
+            pdf_url = ""
+
+    if not pdf_url:
         return abstract or "无摘要与全文节选。"
 
     try:

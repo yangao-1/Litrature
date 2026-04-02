@@ -133,7 +133,10 @@ def _create_item_via_mcp(cfg: ZoteroConfig, row: dict[str, Any], timeout_seconds
         },
     }
 
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+    }
     mcp_token = os.getenv("ZOTERO_MCP_TOKEN", "").strip()
     if mcp_token:
         headers["Authorization"] = f"Bearer {mcp_token}"

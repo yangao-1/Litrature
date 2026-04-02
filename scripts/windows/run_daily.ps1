@@ -1,6 +1,6 @@
 Param(
   [string]$RepoDir = ".",
-  [string]$VaultDir = "obsidian_export",
+  [string]$VaultDir = "",
   [ValidateSet("crossref", "google_scholar", "mixed")]
   [string]$Source = "crossref",
   [int]$DaysBack = 90,
@@ -29,6 +29,14 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 Set-Location $RepoDir
+
+# Prefer explicit parameter, then env var, then ASCII-safe fallback.
+if (-not $VaultDir) {
+  $VaultDir = $env:OBSIDIAN_VAULT_DIR
+}
+if (-not $VaultDir) {
+  $VaultDir = "obsidian_export"
+}
 
 # Ensure Obsidian vault path exists and surface the exact destination in logs.
 $resolvedVaultDir = $VaultDir

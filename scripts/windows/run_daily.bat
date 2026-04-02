@@ -1,7 +1,11 @@
 @echo off
 setlocal
 set REPO_DIR=%~dp0\..\..
-set VAULT_DIR=C:/Users/yangao/OneDrive - UAB/Obsidian/自动文献汇总
+if "%OBSIDIAN_VAULT_DIR%"=="" (
+  set "VAULT_DIR=obsidian_export"
+) else (
+  set "VAULT_DIR=%OBSIDIAN_VAULT_DIR%"
+)
 set SOURCE=crossref
 set DAYS_BACK=90
 set ZOTERO_BACKEND=mcp

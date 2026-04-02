@@ -4,6 +4,7 @@ from html import escape, unescape
 import json
 import os
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote, urljoin
@@ -129,7 +130,7 @@ def _create_item_via_mcp(cfg: ZoteroConfig, row: dict[str, Any], timeout_seconds
     }
 
     headers = {
-        "Content-Type": "application/json",
+        "Content-Type": "application/json; charset=utf-8",
         "Accept": "application/json, text/event-stream",
     }
     mcp_token = os.getenv("ZOTERO_MCP_TOKEN", "").strip()
@@ -321,13 +322,14 @@ def _call_mcp_tool(
     arguments: dict[str, Any],
     timeout_seconds: int,
 ) -> dict[str, Any]:
+    safe_arguments = _sanitize_mcp_value(arguments)
     payload = {
         "jsonrpc": "2.0",
         "id": "litrature-zotero-tool",
         "method": "tools/call",
         "params": {
             "name": tool_name,
-            "arguments": arguments,
+            "arguments": safe_arguments,
         },
     }
 
@@ -380,6 +382,23 @@ def _call_mcp_tool(
                 return _normalize_mcp_result(result=parsed, raw_text=text)
 
     return {"ok": False, "status": 0, "body": f"tools/call 未返回可解析结构: {text[:500]}"}
+
+
+def _sanitize_mcp_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(k): _sanitize_mcp_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_mcp_value(v) for v in value]
+    if isinstance(value, tuple):
+        return [_sanitize_mcp_value(v) for v in value]
+    if isinstance(value, str):
+        txt = unicodedata.normalize("NFKC", value)
+        txt = txt.replace("\u2010", "-").replace("\u2011", "-").replace("\u2012", "-").replace("\u2013", "-")
+        txt = txt.replace("\u2014", "-").replace("\u2212", "-")
+        # Remove control chars that can break some non-standard JSON parsers.
+        txt = "".join(ch for ch in txt if (ch == "\n" or ch == "\r" or ch == "\t" or ord(ch) >= 32))
+        return txt
+    return value
 
 
 def _list_mcp_tools(endpoint: str, headers: dict[str, str], timeout_seconds: int) -> tuple[list[str], str]:

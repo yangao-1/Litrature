@@ -195,6 +195,16 @@ def _apply_journal_policy(rows: list[dict[str, Any]], profile: ResearchProfile) 
 def _is_domain_relevant(row: dict[str, Any]) -> bool:
     text = f"{row.get('title', '')}\n{row.get('abstract', '')}".lower()
 
+    zinc_hints = (
+        "zinc",
+        "zn-ion",
+        "zn ion",
+        "zn2+",
+        "zn2",
+    )
+    if not any(h in text for h in zinc_hints):
+        return False
+
     positive_hints = (
         "battery",
         "zinc-ion",

@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 
@@ -242,7 +243,14 @@ def _fetch_paper_excerpt(row: dict[str, Any], timeout_seconds: int = 30) -> str:
             pdf_url = ""
 
     if not pdf_url:
-        return abstract or "无摘要与全文节选。"
+        if abstract:
+            return abstract
+        doi = str(row.get("doi", "")).strip()
+        if doi:
+            oa_abs = _fetch_openalex_abstract_by_doi(doi=doi, timeout_seconds=min(timeout_seconds, 15))
+            if oa_abs:
+                return oa_abs
+        return "无摘要与全文节选。"
 
     try:
         raw = _download_pdf_bytes(pdf_url, timeout_seconds=timeout_seconds)
@@ -254,6 +262,42 @@ def _fetch_paper_excerpt(row: dict[str, Any], timeout_seconds: int = 30) -> str:
         pass
 
     return abstract or "无摘要与全文节选。"
+
+
+def _fetch_openalex_abstract_by_doi(doi: str, timeout_seconds: int = 15) -> str:
+    doi_path = quote(f"https://doi.org/{doi}", safe="")
+    url = f"https://api.openalex.org/works/{doi_path}"
+    req = Request(url, method="GET", headers={"User-Agent": "litrature-bot/1.0"})
+    try:
+        with urlopen(req, timeout=timeout_seconds) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return ""
+
+    abstract_index = data.get("abstract_inverted_index")
+    if not isinstance(abstract_index, dict):
+        return ""
+
+    max_pos = -1
+    for positions in abstract_index.values():
+        if isinstance(positions, list) and positions:
+            local_max = max((int(p) for p in positions if isinstance(p, int)), default=-1)
+            if local_max > max_pos:
+                max_pos = local_max
+
+    if max_pos < 0:
+        return ""
+
+    words = [""] * (max_pos + 1)
+    for token, positions in abstract_index.items():
+        if not isinstance(token, str) or not isinstance(positions, list):
+            continue
+        for p in positions:
+            if isinstance(p, int) and 0 <= p <= max_pos:
+                words[p] = token
+
+    text = " ".join(w for w in words if w).strip()
+    return text[:6000]
 
 
 def _download_pdf_bytes(pdf_url: str, timeout_seconds: int) -> bytes:

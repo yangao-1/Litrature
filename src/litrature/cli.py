@@ -411,6 +411,13 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
     unique_rows = read_jsonl(app_cfg.workspace / args.unique_output)
     zotero_rows = read_jsonl(app_cfg.workspace / args.zotero_output)
 
+    if bool(args.execute_zotero) and unique_rows:
+        success_count = sum(1 for r in zotero_rows if bool((r.get("zotero_result") or {}).get("ok", False)))
+        if success_count == 0:
+            logger.error("Zotero 执行模式下写入成功为 0，停止后续 Obsidian 导出")
+            print("Zotero 写入成功为 0，请检查 MCP 连接/会话与返回错误后重试。")
+            return 1
+
     if unique_rows and zotero_rows:
         zotero_map: dict[str, dict] = {}
         for row in zotero_rows:

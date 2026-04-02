@@ -1,6 +1,6 @@
 Param(
   [string]$RepoDir = ".",
-  [string]$VaultDir = "C:/Users/yangao/OneDrive - UAB/Obsidian/自动文献汇总",
+  [string]$VaultDir = "obsidian_export",
   [ValidateSet("crossref", "google_scholar", "mixed")]
   [string]$Source = "crossref",
   [int]$DaysBack = 90,
@@ -33,12 +33,12 @@ $resolvedVaultDir = $VaultDir
 if (-not (Test-Path $resolvedVaultDir)) {
   New-Item -ItemType Directory -Path $resolvedVaultDir -Force | Out-Null
 }
-Write-Host "Obsidian 导出目录: $resolvedVaultDir"
+Write-Host "Obsidian output dir: $resolvedVaultDir"
 
 function Resolve-PythonLauncher {
   if (Get-Command py -ErrorAction SilentlyContinue) { return "py -3" }
   if (Get-Command python -ErrorAction SilentlyContinue) { return "python" }
-  throw "未找到 Python。请先安装 Python 3，并勾选 Add python.exe to PATH。"
+  throw "Python 3 not found. Please install Python 3 and add python.exe to PATH."
 }
 
 $pythonExe = Join-Path $PWD ".venv/Scripts/python.exe"
@@ -51,7 +51,7 @@ if (-Not (Test-Path $pythonExe)) {
 }
 
 if (-Not (Test-Path $pythonExe)) {
-  throw "虚拟环境创建失败：未找到 .venv/Scripts/python.exe"
+  throw "Virtual environment creation failed: .venv/Scripts/python.exe not found."
 }
 
 & $pythonExe -m pip install -r requirements.txt
@@ -76,7 +76,7 @@ if ($ExecuteZotero) {
       $effectiveLibraryId = $ZoteroUserId
     }
     if ($effectiveLibraryId -eq "REPLACE_WITH_YOUR_ZOTERO_USER_ID" -or $ZoteroApiKey -eq "REPLACE_WITH_YOUR_ZOTERO_API_KEY") {
-      throw "API 模式下请先填写 ZoteroUserId 和 ZoteroApiKey。"
+      throw "In API mode, please set ZoteroUserId and ZoteroApiKey first."
     }
     $env:ZOTERO_USER_ID = $ZoteroUserId
     $env:ZOTERO_LIBRARY_TYPE = $ZoteroLibraryType
@@ -84,7 +84,7 @@ if ($ExecuteZotero) {
     $env:ZOTERO_API_KEY = $ZoteroApiKey
   } else {
     if (-not $ZoteroMcpEndpoint) {
-      throw "MCP 模式下请设置 ZoteroMcpEndpoint。"
+      throw "In MCP mode, please set ZoteroMcpEndpoint."
     }
     $env:ZOTERO_MCP_ENDPOINT = $ZoteroMcpEndpoint
     $env:ZOTERO_MCP_METHOD = $ZoteroMcpMethod
@@ -94,7 +94,7 @@ if ($ExecuteZotero) {
 
 if ($Source -eq "google_scholar" -or $Source -eq "mixed") {
   if ($SerpApiKey -eq "REPLACE_WITH_YOUR_SERPAPI_API_KEY") {
-    throw "使用 google_scholar 或 mixed 需要填写 SerpApiKey。"
+    throw "SerpApiKey is required when source is google_scholar or mixed."
   }
   $env:SERPAPI_API_KEY = $SerpApiKey
 }
@@ -110,4 +110,4 @@ if ($OpenAIApiKey -ne "REPLACE_WITH_YOUR_OPENAI_API_KEY") {
 
 $env:PYTHONPATH = "src"
 & $pythonExe @argsList
-Write-Host "完成：已执行每日流程（Zotero真实写入 + Obsidian导出，不单独缓存PDF）。"
+Write-Host "Done: daily workflow finished (real Zotero write + Obsidian export, no standalone PDF cache)."

@@ -83,6 +83,19 @@ def _parse_crossref_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
         doi = str(item.get("DOI", "")).strip()
         url = str(item.get("URL", "")).strip()
+        authors: list[str] = []
+        for author in item.get("author") or []:
+            if not isinstance(author, dict):
+                continue
+            given = str(author.get("given", "")).strip()
+            family = str(author.get("family", "")).strip()
+            name = str(author.get("name", "")).strip()
+            if given or family:
+                full = f"{given} {family}".strip()
+                if full:
+                    authors.append(full)
+            elif name:
+                authors.append(name)
         pdf_url = ""
         links = item.get("link") or []
         for link in links:
@@ -99,6 +112,7 @@ def _parse_crossref_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
             "journal": journal,
             "year": _first_year(item),
             "doi": doi,
+            "authors": authors,
             "source": "crossref",
             "source_url": url,
             "pdf_url": pdf_url,

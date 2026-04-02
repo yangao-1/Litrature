@@ -541,11 +541,13 @@ def _try_known_zotero_tools(
         "url": str(item.get("url", "")).strip(),
     }
     fields = {k: v for k, v in fields.items() if v}
+    creators = _build_mcp_creators(row)
 
     create_args: dict[str, Any] = {
         "action": "create",
         "itemType": "journalArticle",
         "fields": fields,
+        "creators": creators,
         "tags": ["auto-import"],
     }
     write_item_resp = _call_mcp_tool(
@@ -595,6 +597,68 @@ def _try_known_zotero_tools(
             "status": int(note_resp.get("status", 0) or 0),
             "body": str(note_resp.get("body", "")),
         },
+    }
+
+
+def _build_mcp_creators(row: dict[str, Any]) -> list[dict[str, str]]:
+    # Zotero MCP write_item may require at least one creator.
+    raw_authors: Any = row.get("authors")
+    if raw_authors is None:
+        raw_authors = row.get("author")
+
+    names: list[str] = []
+    if isinstance(raw_authors, list):
+        for item in raw_authors:
+            if isinstance(item, str):
+                n = item.strip()
+                if n:
+                    names.append(n)
+            elif isinstance(item, dict):
+                given = str(item.get("given", "")).strip()
+                family = str(item.get("family", "")).strip()
+                name = str(item.get("name", "")).strip()
+                if given or family:
+                    n = f"{given} {family}".strip()
+                    if n:
+                        names.append(n)
+                elif name:
+                    names.append(name)
+    elif isinstance(raw_authors, str):
+        n = raw_authors.strip()
+        if n:
+            names.append(n)
+
+    creators: list[dict[str, str]] = []
+    for name in names:
+        creator = _name_to_creator(name)
+        if creator:
+            creators.append(creator)
+
+    if creators:
+        return creators
+
+    # Fallback to avoid hard failure when source metadata has no author field.
+    return [{"creatorType": "author", "lastName": "Unknown"}]
+
+
+def _name_to_creator(name: str) -> dict[str, str] | None:
+    n = str(name or "").strip()
+    if not n:
+        return None
+
+    if "," in n:
+        parts = [p.strip() for p in n.split(",", 1)]
+        if len(parts) == 2 and parts[0] and parts[1]:
+            return {"creatorType": "author", "firstName": parts[1], "lastName": parts[0]}
+
+    chunks = [c for c in n.split() if c]
+    if len(chunks) == 1:
+        return {"creatorType": "author", "lastName": chunks[0]}
+
+    return {
+        "creatorType": "author",
+        "firstName": " ".join(chunks[:-1]),
+        "lastName": chunks[-1],
     }
 
 

@@ -120,17 +120,12 @@ def _create_item_via_mcp(cfg: ZoteroConfig, row: dict[str, Any], timeout_seconds
         return {"ok": False, "status": 0, "body": "缺少环境变量 ZOTERO_MCP_ENDPOINT"}
 
     note_html = _build_note_summary(row, timeout_seconds=timeout_seconds)
-    request_payload = {
-        "jsonrpc": "2.0",
-        "id": "litrature-zotero",
-        "method": method,
-        "params": {
-            "item": _build_item(row),
-            "row": row,
-            "attach_pdf": True,
-            "local_pdf_path": str(row.get("local_pdf_path", "")).strip(),
-            "note_html": note_html,
-        },
+    request_params = {
+        "item": _build_item(row),
+        "row": row,
+        "attach_pdf": True,
+        "local_pdf_path": str(row.get("local_pdf_path", "")).strip(),
+        "note_html": note_html,
     }
 
     headers = {
@@ -147,37 +142,101 @@ def _create_item_via_mcp(cfg: ZoteroConfig, row: dict[str, Any], timeout_seconds
         headers["Mcp-Session-Id"] = mcp_session_id
         headers["X-Session-Id"] = mcp_session_id
 
-    req = Request(
-        endpoint,
-        data=json.dumps(request_payload).encode("utf-8"),
-        method="POST",
-        headers=headers,
-    )
+    method_candidates = _build_mcp_method_candidates(method)
+    tried_errors: list[str] = []
 
-    try:
-        with urlopen(req, timeout=timeout_seconds) as resp:
-            text = resp.read().decode("utf-8")
-    except HTTPError as e:
-        return {"ok": False, "status": e.code, "body": e.read().decode("utf-8", errors="ignore")}
-    except Exception as e:
-        return {"ok": False, "status": 0, "body": f"MCP 调用失败: {e}"}
+    for method_name in method_candidates:
+        request_payload = {
+            "jsonrpc": "2.0",
+            "id": "litrature-zotero",
+            "method": method_name,
+            "params": request_params,
+        }
 
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError:
-        return {"ok": False, "status": 0, "body": f"MCP 返回非 JSON: {text[:500]}"}
+        req = Request(
+            endpoint,
+            data=json.dumps(request_payload).encode("utf-8"),
+            method="POST",
+            headers=headers,
+        )
 
-    if isinstance(payload, dict) and payload.get("error"):
-        return {"ok": False, "status": 0, "body": json.dumps(payload.get("error"), ensure_ascii=False)}
+        try:
+            with urlopen(req, timeout=timeout_seconds) as resp:
+                text = resp.read().decode("utf-8")
+        except HTTPError as e:
+            return {"ok": False, "status": e.code, "body": e.read().decode("utf-8", errors="ignore")}
+        except Exception as e:
+            return {"ok": False, "status": 0, "body": f"MCP 调用失败: {e}"}
 
-    result = payload.get("result") if isinstance(payload, dict) else None
-    if isinstance(result, list) and result and isinstance(result[0], dict):
-        result = result[0]
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            return {"ok": False, "status": 0, "body": f"MCP 返回非 JSON: {text[:500]}"}
 
-    if not isinstance(result, dict):
-        return {"ok": False, "status": 0, "body": f"MCP 返回缺少可解析 result: {text[:500]}"}
+        if isinstance(payload, dict) and payload.get("error"):
+            err = payload.get("error")
+            err_text = json.dumps(err, ensure_ascii=False)
+            code = 0
+            if isinstance(err, dict):
+                try:
+                    code = int(err.get("code", 0) or 0)
+                except Exception:
+                    code = 0
+            if code == -32601:
+                tried_errors.append(f"{method_name}: {err_text}")
+                continue
+            return {"ok": False, "status": 0, "body": err_text}
 
-    return _normalize_mcp_result(result=result, raw_text=text)
+        result = payload.get("result") if isinstance(payload, dict) else None
+        if isinstance(result, list) and result and isinstance(result[0], dict):
+            result = result[0]
+
+        if not isinstance(result, dict):
+            return {"ok": False, "status": 0, "body": f"MCP 返回缺少可解析 result: {text[:500]}"}
+
+        return _normalize_mcp_result(result=result, raw_text=text)
+
+    return {
+        "ok": False,
+        "status": 0,
+        "body": "MCP 方法未命中。已尝试: " + " | ".join(tried_errors),
+    }
+
+
+def _build_mcp_method_candidates(method: str) -> list[str]:
+    base = method.strip() or "zotero.create_item"
+    candidates = [base]
+
+    if "." in base:
+        namespace, action = base.rsplit(".", 1)
+        if "_" in action:
+            parts = [p for p in action.split("_") if p]
+            if parts:
+                camel = parts[0] + "".join(p[:1].upper() + p[1:] for p in parts[1:])
+                candidates.append(f"{namespace}.{camel}")
+    else:
+        if "_" in base:
+            parts = [p for p in base.split("_") if p]
+            if parts:
+                camel = parts[0] + "".join(p[:1].upper() + p[1:] for p in parts[1:])
+                candidates.append(camel)
+
+    candidates.extend([
+        "zotero.create_item",
+        "zotero.createItem",
+        "create_item",
+        "createItem",
+    ])
+
+    uniq: list[str] = []
+    seen: set[str] = set()
+    for m in candidates:
+        m2 = str(m).strip()
+        if not m2 or m2 in seen:
+            continue
+        seen.add(m2)
+        uniq.append(m2)
+    return uniq
 
 
 def _normalize_mcp_result(result: dict[str, Any], raw_text: str) -> dict[str, Any]:

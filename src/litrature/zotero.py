@@ -258,7 +258,7 @@ def extract_success_key(response_text: str) -> str:
 
 def _create_attachment(cfg: ZoteroConfig, parent_key: str, pdf_url: str, timeout_seconds: int) -> dict[str, Any]:
     endpoint = _build_endpoint(cfg)
-    payload = [_build_attachment_item(parent_key=parent_key, pdf_url=pdf_url, link_mode="imported_url")]
+    payload = [_build_attachment_item(parent_key=parent_key, pdf_url=pdf_url, link_mode="linked_url")]
     req = Request(
         endpoint,
         data=json.dumps(payload).encode("utf-8"),
@@ -274,24 +274,7 @@ def _create_attachment(cfg: ZoteroConfig, parent_key: str, pdf_url: str, timeout
             return {"ok": True, "status": resp.status, "body": resp.read().decode("utf-8")}
     except HTTPError as e:
         body = e.read().decode("utf-8", errors="ignore")
-        # Some libraries reject imported_url; fallback to linked_url to preserve a working attachment link.
-        fallback_payload = [_build_attachment_item(parent_key=parent_key, pdf_url=pdf_url, link_mode="linked_url")]
-        fallback_req = Request(
-            endpoint,
-            data=json.dumps(fallback_payload).encode("utf-8"),
-            method="POST",
-            headers={
-                "Content-Type": "application/json",
-                "Zotero-API-Key": cfg.api_key,
-                "Zotero-Write-Token": _new_write_token("litrature"),
-            },
-        )
-        try:
-            with urlopen(fallback_req, timeout=timeout_seconds) as resp:
-                return {"ok": True, "status": resp.status, "body": resp.read().decode("utf-8")}
-        except HTTPError as e2:
-            body2 = e2.read().decode("utf-8", errors="ignore")
-            return {"ok": False, "status": e2.code, "body": f"imported_url: {body} | linked_url: {body2}"}
+        return {"ok": False, "status": e.code, "body": body}
 
 
 def _build_attachment_item(parent_key: str, pdf_url: str, link_mode: str) -> dict[str, str]:

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from .config import build_app_config, load_profile
+from .dedup import build_key
 from .dedup import deduplicate_rows, save_index
 from .io_utils import read_jsonl, write_jsonl
 from .logging_utils import setup_logger
@@ -366,11 +367,34 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
     if cmd_zotero_sync(zotero_args) != 0:
         return 1
 
-    obsidian_input = args.zotero_output
+    unique_rows = read_jsonl(app_cfg.workspace / args.unique_output)
     zotero_rows = read_jsonl(app_cfg.workspace / args.zotero_output)
-    if not zotero_rows:
+
+    if unique_rows and zotero_rows:
+        zotero_map: dict[str, dict] = {}
+        for row in zotero_rows:
+            key = build_key(row)
+            zotero_map[key] = row
+
+        merged_rows: list[dict] = []
+        for row in unique_rows:
+            key = build_key(row)
+            merged = dict(row)
+            z_row = zotero_map.get(key)
+            if z_row:
+                for field in ("zotero_result", "zotero_key", "zotero_attachment_ok", "zotero_note_ok"):
+                    if field in z_row:
+                        merged[field] = z_row[field]
+            merged_rows.append(merged)
+
+        obsidian_input = "data/obsidian.input.jsonl"
+        write_jsonl(app_cfg.workspace / obsidian_input, merged_rows)
+    else:
         obsidian_input = args.unique_output
-        logger.warning("Zotero 输出为空，Obsidian 导出回退到去重输出: %s", obsidian_input)
+        if not unique_rows:
+            logger.warning("去重输出为空，Obsidian 导出将无可用条目")
+        elif not zotero_rows:
+            logger.warning("Zotero 输出为空，Obsidian 导出使用去重输出: %s", obsidian_input)
 
     obsidian_args = argparse.Namespace(
         **base.__dict__,

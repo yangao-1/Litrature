@@ -145,6 +145,7 @@ Zotero 同步增强（已启用）：
 - 每条导入记录会自动创建一条 Zotero 子笔记（AI 结构化摘要）。
 - 支持两种写入后端：`api`（官方 Web API）与 `mcp`（通过你本地的 Zotero MCP 服务）。
 - API 模式下支持 `users` 与 `groups` 两种库类型；如果你写入群组库，请设置 `ZOTERO_LIBRARY_TYPE=groups` 和 `ZOTERO_LIBRARY_ID=<group_id>`。
+- `api` 模式附件为 URL 链接型（linked_url）；若你希望 Zotero 内出现真实本地 PDF 文件，建议使用 `mcp` 后端由本地 Zotero 客户端下载/导入。
 
 Google Scholar 说明：
 - 本项目通过 SerpAPI 访问 Google Scholar 结果（`source=google_scholar`）。

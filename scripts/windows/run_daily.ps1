@@ -36,6 +36,21 @@ if (-not (Test-Path $resolvedVaultDir)) {
 }
 Write-Host "Obsidian output dir: $resolvedVaultDir"
 
+function Test-McpEndpoint {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Endpoint
+  )
+
+  try {
+    $probeBody = '{"jsonrpc":"2.0","id":"litrature-probe","method":"ping","params":{}}'
+    Invoke-WebRequest -Uri $Endpoint -Method POST -ContentType "application/json" -Headers @{ "Accept" = "application/json, text/event-stream" } -Body $probeBody -TimeoutSec 3 | Out-Null
+    return $true
+  } catch {
+    return $false
+  }
+}
+
 function Resolve-PythonLauncher {
   if (Get-Command py -ErrorAction SilentlyContinue) { return "py -3" }
   if (Get-Command python -ErrorAction SilentlyContinue) { return "python" }
@@ -86,6 +101,9 @@ if ($ExecuteZotero) {
   } else {
     if (-not $ZoteroMcpEndpoint) {
       throw "In MCP mode, please set ZoteroMcpEndpoint."
+    }
+    if (-not (Test-McpEndpoint -Endpoint $ZoteroMcpEndpoint)) {
+      throw "Cannot connect to Zotero MCP endpoint: $ZoteroMcpEndpoint . Please start Zotero and MCP service first, then retry."
     }
     $env:ZOTERO_MCP_ENDPOINT = $ZoteroMcpEndpoint
     $env:ZOTERO_MCP_METHOD = $ZoteroMcpMethod

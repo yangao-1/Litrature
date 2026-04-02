@@ -32,6 +32,10 @@ if /I "%ZOTERO_BACKEND%"=="api" (
   )
 )
 
+if /I "%ZOTERO_BACKEND%"=="mcp" (
+  echo MCP mode enabled. Please ensure Zotero MCP service is running at %ZOTERO_MCP_ENDPOINT%
+)
+
 if /I "%SOURCE%"=="google_scholar" (
   if "%SERPAPI_API_KEY%"=="REPLACE_WITH_YOUR_SERPAPI_API_KEY" (
     echo google_scholar 模式请先填写 SERPAPI_API_KEY

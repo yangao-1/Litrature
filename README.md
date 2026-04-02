@@ -150,8 +150,9 @@ Zotero 同步增强（已启用）：
 
 本地 PDF 数据库（新增）：
 - 每次执行会尝试把可下载 PDF 缓存到 `data/pdf_library`。
+- 缓存索引默认写入 `data/pdf_library_index.json`，用于跨天去重，避免重复下载。
 - 同步结果 `data/zotero.synced.jsonl` 会记录 `local_pdf_cached` 与 `local_pdf_path`。
-- 可通过参数 `--local-pdf-dir` 指定目录，便于你维护本地文献库。
+- 可通过参数 `--local-pdf-dir` / `--local-pdf-index` 指定目录与索引文件，便于你维护本地文献库。
 
 Google Scholar 说明：
 - 本项目通过 SerpAPI 访问 Google Scholar 结果（`source=google_scholar`）。

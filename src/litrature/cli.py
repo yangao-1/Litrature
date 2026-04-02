@@ -228,6 +228,7 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
     synced_rows: list[dict] = []
     fail_samples: list[dict[str, str | int]] = []
     pdf_cache_dir = app_cfg.workspace / args.local_pdf_dir
+    pdf_cache_index = app_cfg.workspace / args.local_pdf_index
     use_local_pdf_cache = not bool(args.disable_local_pdf_cache)
 
     for row in candidates:
@@ -240,6 +241,7 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
                     row=row,
                     pdf_url=resolved_pdf_url,
                     out_dir=pdf_cache_dir,
+                    index_path=pdf_cache_index,
                     timeout_seconds=int(args.pdf_timeout),
                 )
             except Exception:
@@ -309,6 +311,7 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
                 "失败重试队列": str(queue_path),
                 "同步输出": str(out_path),
                 "本地PDF目录": str(pdf_cache_dir),
+                "本地PDF索引": str(pdf_cache_index),
                 "失败示例": fail_samples,
             },
             ensure_ascii=False,
@@ -390,6 +393,7 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
         execute=args.execute_zotero,
         zotero_backend=args.zotero_backend,
         local_pdf_dir=args.local_pdf_dir,
+        local_pdf_index=args.local_pdf_index,
         pdf_timeout=args.pdf_timeout,
         disable_local_pdf_cache=args.disable_local_pdf_cache,
         output=args.zotero_output,
@@ -587,6 +591,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Zotero 写入后端：api 或 mcp",
     )
     zotero_sync.add_argument("--local-pdf-dir", default="data/pdf_library", help="本地 PDF 数据库目录")
+    zotero_sync.add_argument("--local-pdf-index", default="data/pdf_library_index.json", help="本地 PDF 索引文件")
     zotero_sync.add_argument("--pdf-timeout", default=30, type=int, help="PDF 下载超时（秒）")
     zotero_sync.add_argument("--disable-local-pdf-cache", action="store_true", help="禁用本地 PDF 缓存")
     zotero_sync.set_defaults(func=cmd_zotero_sync)
@@ -638,6 +643,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="要求必须配置 OPENAI_API_KEY；未配置则失败退出",
     )
     run_daily.add_argument("--local-pdf-dir", default="data/pdf_library", help="本地 PDF 数据库目录")
+    run_daily.add_argument("--local-pdf-index", default="data/pdf_library_index.json", help="本地 PDF 索引文件")
     run_daily.add_argument("--pdf-timeout", default=30, type=int, help="PDF 下载超时（秒）")
     run_daily.add_argument("--disable-local-pdf-cache", action="store_true", help="禁用本地 PDF 缓存")
     run_daily.set_defaults(func=cmd_run_daily)

@@ -339,10 +339,11 @@ def cmd_obsidian_sync(args: argparse.Namespace) -> int:
         require_openai_summary=bool(args.require_openai_summary),
     )
     logger.info(
-        "Obsidian 导出完成: 笔记=%d, 新增=%d, 覆盖=%d",
+        "Obsidian 导出完成: 笔记=%d, 新增=%d, 覆盖=%d, 可读=%d",
         result["notes"],
         int(result.get("notes_created", 0)),
         int(result.get("notes_updated", 0)),
+        int(result.get("readable_notes", 0)),
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0

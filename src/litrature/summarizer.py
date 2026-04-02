@@ -23,13 +23,16 @@ def generate_note_markdown(row: dict[str, Any], timeout_seconds: int = 30) -> st
         zotero_key = "N/A"
 
     template = _load_note_template()
+    paper_excerpt, evidence_level = _fetch_paper_excerpt_with_level(row, timeout_seconds=timeout_seconds)
+    if evidence_level in ("none", "metadata"):
+        return _pending_fulltext_note_markdown(row=row, zotero_key=zotero_key, evidence_level=evidence_level)
+
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         return _rule_note_markdown(row, template, zotero_key=zotero_key)
 
     model = os.getenv("OPENAI_MODEL", "gpt-4.1")
     abstract = str(row.get("abstract", "")).strip()
-    paper_excerpt = _fetch_paper_excerpt(row, timeout_seconds=timeout_seconds)
 
     prompt = (
         "你是严谨的电池机理论文分析助手。请严格按模板结构输出 Markdown，不要新增或删除标题。"
@@ -48,6 +51,7 @@ def generate_note_markdown(row: dict[str, Any], timeout_seconds: int = 30) -> st
         f"journal: {row.get('journal', '')}\n"
         f"year: {row.get('year', '')}\n"
         f"abstract: {abstract}\n\n"
+        f"[证据等级]\n{evidence_level}\n\n"
         "[全文节选]\n"
         f"{paper_excerpt}\n\n"
         "[变量替换要求]\n"
@@ -69,6 +73,7 @@ def generate_report_markdown(
     note_titles: list[str],
     report_type: str,
     timeout_seconds: int = 30,
+    evidence_stats: dict[str, int] | None = None,
 ) -> str:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
@@ -102,6 +107,7 @@ def generate_report_markdown(
         f"notes_count: {len(note_titles)}\n"
         f"note_titles: {json.dumps(note_titles, ensure_ascii=False)}\n"
         f"rows: {json.dumps(rows_payload, ensure_ascii=False)}\n\n"
+        f"evidence_stats: {json.dumps(evidence_stats or {}, ensure_ascii=False)}\n\n"
         "输出格式（标题必须一致）：\n"
         f"# {report_title}\n"
         "## 执行摘要\n"
@@ -114,7 +120,7 @@ def generate_report_markdown(
 
     content = _call_chat_completion(prompt=prompt, api_key=api_key, model=model, timeout_seconds=timeout_seconds)
     if not content:
-        return _rule_report_markdown(note_titles=note_titles, report_type=report_type)
+        return _rule_report_markdown(note_titles=note_titles, report_type=report_type, evidence_stats=evidence_stats)
     return content.strip()
 
 
@@ -231,8 +237,29 @@ def _load_note_template() -> str:
         return default
 
 
-def _fetch_paper_excerpt(row: dict[str, Any], timeout_seconds: int = 30) -> str:
+def assess_evidence_level(row: dict[str, Any]) -> str:
+    local_pdf_path = str(row.get("local_pdf_path", "")).strip()
+    if local_pdf_path:
+        return "fulltext-local"
+
+    pdf_url = str(row.get("pdf_url", "")).strip()
+    if pdf_url:
+        return "fulltext-url"
+
     abstract = str(row.get("abstract", "")).strip()
+    if len(abstract) >= 120:
+        return "abstract"
+
+    doi = str(row.get("doi", "")).strip()
+    if doi:
+        return "metadata"
+
+    return "none"
+
+
+def _fetch_paper_excerpt_with_level(row: dict[str, Any], timeout_seconds: int = 30) -> tuple[str, str]:
+    abstract = str(row.get("abstract", "")).strip()
+    base_level = assess_evidence_level(row)
     pdf_url = str(row.get("pdf_url", "")).strip()
     if not pdf_url:
         try:
@@ -244,24 +271,50 @@ def _fetch_paper_excerpt(row: dict[str, Any], timeout_seconds: int = 30) -> str:
 
     if not pdf_url:
         if abstract:
-            return abstract
+            return abstract, "abstract"
         doi = str(row.get("doi", "")).strip()
         if doi:
             oa_abs = _fetch_openalex_abstract_by_doi(doi=doi, timeout_seconds=min(timeout_seconds, 15))
             if oa_abs:
-                return oa_abs
-        return "无摘要与全文节选。"
+                return oa_abs, "abstract-openalex"
+        return "无摘要与全文节选。", base_level
 
     try:
         raw = _download_pdf_bytes(pdf_url, timeout_seconds=timeout_seconds)
         text = _extract_pdf_text(raw)
         if text:
             text = " ".join(text.split())
-            return text[:12000]
+            return text[:12000], "fulltext"
     except Exception:
         pass
 
-    return abstract or "无摘要与全文节选。"
+    if abstract:
+        return abstract, "abstract"
+    return "无摘要与全文节选。", base_level
+
+
+def _pending_fulltext_note_markdown(row: dict[str, Any], zotero_key: str, evidence_level: str) -> str:
+    title = str(row.get("title", "")).strip() or "Untitled"
+    doi = str(row.get("doi", "")).strip()
+    url = str(row.get("source_url", "")).strip()
+    journal = str(row.get("journal", "")).strip()
+    year = str(row.get("year", "")).strip()
+
+    return (
+        f"# AI分析 - {title}\n\n"
+        f"**Zotero:** [Open in Zotero](zotero://select/library/items/{zotero_key})  \n"
+        f"**DOI:** {doi}  \n"
+        f"**URL:** {url}  \n"
+        f"**Journal/Year:** {journal} / {year}\n\n"
+        "## 状态\n"
+        "- 当前为待补全文短卡，不输出深度机制分析。\n"
+        f"- 证据等级: {evidence_level}\n"
+        "- 原因: 未获取到可读全文或足够摘要。\n\n"
+        "## 下一步\n"
+        "- 在 Zotero 中确认附件是否已成功下载并可打开。\n"
+        "- 若 DOI 可访问，补抓 PDF 后重跑生成笔记。\n"
+        "- 对高优先级文献手动粘贴摘要/关键图注再二次总结。\n"
+    )
 
 
 def _fetch_openalex_abstract_by_doi(doi: str, timeout_seconds: int = 15) -> str:
@@ -344,13 +397,18 @@ def _rule_note_markdown(row: dict[str, Any], template: str, zotero_key: str) -> 
     return filled + fallback_append
 
 
-def _rule_report_markdown(note_titles: list[str], report_type: str) -> str:
+def _rule_report_markdown(note_titles: list[str], report_type: str, evidence_stats: dict[str, int] | None = None) -> str:
     title = "自动文献日报" if report_type == "daily" else "自动文献周报"
+    stats = evidence_stats or {}
+    readable = int(stats.get("readable", 0))
+    total = int(stats.get("total", len(note_titles) or 0))
+    readability = 0.0 if total <= 0 else (readable / total * 100)
     lines = [
         f"# {title}",
         "",
         "## 执行摘要",
         f"- 本期处理条目: {len(note_titles)}",
+        f"- 全文可读率: {readable}/{total} ({readability:.1f}%)",
         "- 报告模式: 规则兜底（未调用 GPT）。",
         "",
         "## 本期新增与更新",

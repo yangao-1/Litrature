@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .summarizer import generate_note_markdown, generate_report_markdown, is_openai_enabled
+from .summarizer import assess_evidence_level, generate_note_markdown, generate_report_markdown, is_openai_enabled
 
 
 def _safe_name(text: str) -> str:
@@ -35,6 +35,8 @@ def export_obsidian(
     written_notes = []
     created_count = 0
     updated_count = 0
+    readable_count = 0
+    evidence_counts: dict[str, int] = {}
     for row in rows:
         title = str(row.get("title", "")).strip()
         if not title:
@@ -49,6 +51,11 @@ def export_obsidian(
         fname = f"{_safe_name(title)}.md"
         path = notes_dir / fname
         existed_before = path.exists()
+
+        evidence_level = assess_evidence_level(row)
+        evidence_counts[evidence_level] = evidence_counts.get(evidence_level, 0) + 1
+        if evidence_level in ("fulltext-local", "fulltext-url", "abstract", "abstract-openalex", "fulltext"):
+            readable_count += 1
 
         ai_note_markdown = generate_note_markdown(row, timeout_seconds=summarize_timeout)
         content = (
@@ -73,11 +80,17 @@ def export_obsidian(
 
     daily = reports_dir / f"日报-{today}.md"
     note_titles = [p.name[:-3] for p in written_notes]
+    evidence_stats = {
+        "total": len(written_notes),
+        "readable": readable_count,
+        **{f"level_{k}": v for k, v in evidence_counts.items()},
+    }
     daily_markdown = generate_report_markdown(
         rows=rows,
         note_titles=note_titles,
         report_type="daily",
         timeout_seconds=summarize_timeout,
+        evidence_stats=evidence_stats,
     )
     daily_content = daily_markdown + "\n\n## 新增条目\n" + "\n".join(
         [f"- [[文献笔记/{title}]]" for title in note_titles]
@@ -90,6 +103,7 @@ def export_obsidian(
         note_titles=note_titles,
         report_type="weekly",
         timeout_seconds=summarize_timeout,
+        evidence_stats=evidence_stats,
     )
     weekly_content = weekly_markdown + "\n\n## 本周文献链接\n" + "\n".join(
         [f"- [[文献笔记/{title}]]" for title in note_titles]
@@ -113,6 +127,7 @@ def export_obsidian(
         "notes": len(written_notes),
         "notes_created": created_count,
         "notes_updated": updated_count,
+        "readable_notes": readable_count,
         "ai_summary_mode": "gpt" if ai_enabled else "rule-fallback",
         "daily_report": str(daily),
         "weekly_report": str(weekly),

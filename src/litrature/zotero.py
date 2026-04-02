@@ -214,6 +214,19 @@ def _create_item_via_mcp(cfg: ZoteroConfig, row: dict[str, Any], timeout_seconds
         timeout_seconds=timeout_seconds,
     )
     if discovered_tools:
+        direct_resp = _try_known_zotero_tools(
+            endpoint=endpoint,
+            headers=headers,
+            discovered_tools=discovered_tools,
+            row=row,
+            note_html=note_html,
+            timeout_seconds=timeout_seconds,
+        )
+        if direct_resp.get("ok"):
+            return direct_resp
+        if direct_resp.get("body"):
+            tried_errors.append(f"known-tools: {direct_resp.get('body', '')}")
+
         for tool_name in _rank_mcp_tool_candidates(discovered_tools, method_candidates):
             tool_resp = _call_mcp_tool(
                 endpoint=endpoint,
@@ -496,6 +509,93 @@ def _rank_mcp_tool_candidates(discovered: list[str], method_candidates: list[str
         seen.add(name)
         uniq.append(name)
     return uniq
+
+
+def _try_known_zotero_tools(
+    endpoint: str,
+    headers: dict[str, str],
+    discovered_tools: list[str],
+    row: dict[str, Any],
+    note_html: str,
+    timeout_seconds: int,
+) -> dict[str, Any]:
+    discovered = {str(x).strip().lower() for x in discovered_tools if str(x).strip()}
+
+    # This Zotero MCP plugin exposes write_item/write_note, not create_item.
+    write_item_name = ""
+    for candidate in ("write_item", "write-item", "writeItem"):
+        if candidate.lower() in discovered:
+            write_item_name = candidate
+            break
+
+    if not write_item_name:
+        return {"ok": False, "status": 0, "body": "未发现 write_item 工具"}
+
+    item = _build_item(row)
+    fields = {
+        "title": str(item.get("title", "")).strip(),
+        "abstractNote": str(item.get("abstractNote", "")).strip(),
+        "publicationTitle": str(item.get("publicationTitle", "")).strip(),
+        "date": str(item.get("date", "")).strip(),
+        "DOI": str(item.get("DOI", "")).strip(),
+        "url": str(item.get("url", "")).strip(),
+    }
+    fields = {k: v for k, v in fields.items() if v}
+
+    create_args: dict[str, Any] = {
+        "action": "create",
+        "itemType": "journalArticle",
+        "fields": fields,
+        "tags": ["auto-import"],
+    }
+    write_item_resp = _call_mcp_tool(
+        endpoint=endpoint,
+        headers=headers,
+        tool_name=write_item_name,
+        arguments=create_args,
+        timeout_seconds=timeout_seconds,
+    )
+    if not write_item_resp.get("ok"):
+        return write_item_resp
+
+    parent_key = str(write_item_resp.get("parent_key", "")).strip()
+    if not parent_key:
+        parent_key = _extract_mcp_parent_key(str(write_item_resp.get("body", "")))
+
+    note_resp = {"ok": False, "status": 0, "body": "未执行"}
+    write_note_name = ""
+    for candidate in ("write_note", "write-note", "writeNote"):
+        if candidate.lower() in discovered:
+            write_note_name = candidate
+            break
+
+    if write_note_name and parent_key:
+        note_args = {
+            "action": "create",
+            "parentKey": parent_key,
+            "content": note_html,
+            "tags": ["auto-import"],
+        }
+        note_resp = _call_mcp_tool(
+            endpoint=endpoint,
+            headers=headers,
+            tool_name=write_note_name,
+            arguments=note_args,
+            timeout_seconds=timeout_seconds,
+        )
+
+    return {
+        "ok": True,
+        "status": int(write_item_resp.get("status", 200) or 200),
+        "body": str(write_item_resp.get("body", "")),
+        "parent_key": parent_key,
+        "attachment": {"ok": False, "status": 0, "body": "当前插件未通过 write_item 直接处理附件"},
+        "note": {
+            "ok": bool(note_resp.get("ok", False)),
+            "status": int(note_resp.get("status", 0) or 0),
+            "body": str(note_resp.get("body", "")),
+        },
+    }
 
 
 def _parse_mcp_payload(text: str) -> dict[str, Any] | None:

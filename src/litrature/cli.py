@@ -378,6 +378,29 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
     if cmd_fetch(fetch_args) != 0:
         return 1
 
+    raw_rows = read_jsonl(app_cfg.workspace / args.raw_output)
+    if not raw_rows:
+        logger.warning("检索结果为空，按空数据继续执行导出流程")
+        write_jsonl(app_cfg.workspace / args.screen_output, [])
+        write_jsonl(app_cfg.workspace / args.unique_output, [])
+        write_jsonl(app_cfg.workspace / args.duplicates_output, [])
+        write_jsonl(app_cfg.workspace / args.zotero_output, [])
+
+        obsidian_args = argparse.Namespace(
+            **base.__dict__,
+            input=args.unique_output,
+            vault_dir=args.vault_dir,
+            profile_name=args.profile_name,
+            summary_timeout=args.summary_timeout,
+            require_openai_summary=args.require_openai_summary,
+        )
+        if cmd_obsidian_sync(obsidian_args) != 0:
+            return 1
+
+        logger.info("每日自动流程已完成（本次检索 0 条）")
+        print("每日自动流程已完成（本次检索 0 条）。")
+        return 0
+
     screen_args = argparse.Namespace(
         **base.__dict__,
         input=args.raw_output,

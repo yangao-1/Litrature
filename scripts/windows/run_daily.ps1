@@ -145,6 +145,39 @@ if ($LASTEXITCODE -ne 0) {
     Get-Content -Path $logPath -Tail 80
     Write-Host "--- end of litrature.log ---"
   }
+
+  $zoteroOut = Join-Path $PWD "data/zotero.synced.jsonl"
+  if (Test-Path $zoteroOut) {
+    Write-Host "--- zotero failure samples ---"
+    $failLines = @()
+    foreach ($line in Get-Content -Path $zoteroOut) {
+      if (-not $line) { continue }
+      try {
+        $obj = $line | ConvertFrom-Json
+        if ($null -ne $obj.zotero_result -and -not [bool]$obj.zotero_result.ok) {
+          $sample = [PSCustomObject]@{
+            title  = [string]$obj.title
+            status = [int]($obj.zotero_result.status)
+            body   = ([string]$obj.zotero_result.body)
+          }
+          $failLines += $sample
+          if ($failLines.Count -ge 3) { break }
+        }
+      } catch {
+      }
+    }
+
+    if ($failLines.Count -gt 0) {
+      $failLines | ForEach-Object {
+        $body = $_.body
+        if ($body.Length -gt 300) { $body = $body.Substring(0, 300) }
+        Write-Host ("status=" + $_.status + " | title=" + $_.title)
+        Write-Host ("body=" + $body)
+      }
+    }
+    Write-Host "--- end of zotero failure samples ---"
+  }
+
   throw "Daily workflow failed. Python exit code: $LASTEXITCODE"
 }
 

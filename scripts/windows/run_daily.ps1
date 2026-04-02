@@ -139,6 +139,12 @@ $env:OPENAI_MODEL = $OpenAIModel
 $env:PYTHONPATH = "src"
 & $pythonExe @argsList
 if ($LASTEXITCODE -ne 0) {
+  $logPath = Join-Path $PWD "logs/litrature.log"
+  if (Test-Path $logPath) {
+    Write-Host "--- litrature.log (last 80 lines) ---"
+    Get-Content -Path $logPath -Tail 80
+    Write-Host "--- end of litrature.log ---"
+  }
   throw "Daily workflow failed. Python exit code: $LASTEXITCODE"
 }
 

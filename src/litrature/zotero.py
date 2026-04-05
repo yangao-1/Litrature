@@ -74,21 +74,6 @@ def create_item(cfg: ZoteroConfig, row: dict[str, Any], timeout_seconds: int = 2
                 "body": text,
                 "parent_key": parent_key,
             }
-
-            pdf_url = _resolve_pdf_url(row, timeout_seconds=timeout_seconds)
-            if not pdf_url:
-                note = _create_ai_note(
-                    cfg=cfg,
-                    parent_key=parent_key,
-                    row=row,
-                    timeout_seconds=timeout_seconds,
-                )
-                return {
-                    **parent_resp,
-                    "attachment": {"ok": False, "status": 0, "body": "未找到可用 PDF 链接"},
-                    "note": note,
-                }
-
             if not parent_key:
                 return {
                     **parent_resp,
@@ -96,19 +81,17 @@ def create_item(cfg: ZoteroConfig, row: dict[str, Any], timeout_seconds: int = 2
                     "note": {"ok": False, "status": 0, "body": "未提取到 parent key，无法创建笔记"},
                 }
 
-            attachment = _create_attachment(
-                cfg=cfg,
-                parent_key=parent_key,
-                pdf_url=pdf_url,
-                timeout_seconds=timeout_seconds,
-            )
             note = _create_ai_note(
                 cfg=cfg,
                 parent_key=parent_key,
                 row=row,
                 timeout_seconds=timeout_seconds,
             )
-            return {**parent_resp, "attachment": attachment, "note": note}
+            return {
+                **parent_resp,
+                "attachment": {"ok": False, "status": 0, "body": "已按配置禁用 PDF 附件创建"},
+                "note": note,
+            }
     except HTTPError as e:
         body = e.read().decode("utf-8", errors="ignore")
         return {"ok": False, "status": e.code, "body": body}
@@ -124,8 +107,8 @@ def _create_item_via_mcp(cfg: ZoteroConfig, row: dict[str, Any], timeout_seconds
     request_params = {
         "item": _build_item(row),
         "row": row,
-        "attach_pdf": True,
-        "local_pdf_path": str(row.get("local_pdf_path", "")).strip(),
+        "attach_pdf": False,
+        "local_pdf_path": "",
         "note_html": note_html,
     }
 

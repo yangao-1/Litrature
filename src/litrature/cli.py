@@ -11,11 +11,10 @@ from .dedup import deduplicate_rows, save_index
 from .io_utils import read_jsonl, write_jsonl
 from .logging_utils import setup_logger
 from .obsidian_export import export_obsidian
-from .pdf_cache import cache_pdf_for_row
 from .retry_queue import append_failure
 from .screening import CandidateRecord, screen_candidate
 from .search import SearchOptions, search_candidates
-from .zotero import ZoteroConfig, create_item, dry_run_item, extract_success_key, resolve_pdf_url
+from .zotero import ZoteroConfig, create_item, dry_run_item, extract_success_key
 
 
 def cmd_plan(args: argparse.Namespace) -> int:
@@ -230,32 +229,12 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
     attachment_ok_count = 0
     synced_rows: list[dict] = []
     fail_samples: list[dict[str, str | int]] = []
+    # Requirement: only create Zotero item + template note, no PDF fetch/cache.
     pdf_cache_dir = app_cfg.workspace / args.local_pdf_dir
     pdf_cache_index = app_cfg.workspace / args.local_pdf_index
-    use_local_pdf_cache = not bool(args.disable_local_pdf_cache)
 
     for row in candidates:
-        local_pdf_ok = False
-        local_pdf_path = ""
-        resolved_pdf_url = resolve_pdf_url(row, timeout_seconds=int(args.pdf_timeout))
-        if use_local_pdf_cache and resolved_pdf_url:
-            try:
-                local_pdf_ok, local_pdf_path = cache_pdf_for_row(
-                    row=row,
-                    pdf_url=resolved_pdf_url,
-                    out_dir=pdf_cache_dir,
-                    index_path=pdf_cache_index,
-                    timeout_seconds=int(args.pdf_timeout),
-                )
-            except Exception:
-                local_pdf_ok = False
-                local_pdf_path = ""
-
         row_for_sync = dict(row)
-        if resolved_pdf_url:
-            row_for_sync["pdf_url"] = resolved_pdf_url
-        if local_pdf_path:
-            row_for_sync["local_pdf_path"] = local_pdf_path
 
         if execute:
             if backend == "api" and (not library_id or not api_key):
@@ -270,8 +249,8 @@ def cmd_zotero_sync(args: argparse.Namespace) -> int:
         row_out["zotero_key"] = ""
         row_out["zotero_attachment_ok"] = bool(result.get("attachment", {}).get("ok", False))
         row_out["zotero_note_ok"] = bool(result.get("note", {}).get("ok", False))
-        row_out["local_pdf_cached"] = bool(local_pdf_ok)
-        row_out["local_pdf_path"] = local_pdf_path
+        row_out["local_pdf_cached"] = False
+        row_out["local_pdf_path"] = ""
 
         if result.get("ok") and bool(args.execute):
             body = str(result.get("body", ""))

@@ -139,8 +139,15 @@ def _parse_serpapi_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
         publication_info = item.get("publication_info", {})
         summary = ""
+        authors: list[str] = []
         if isinstance(publication_info, dict):
             summary = str(publication_info.get("summary", "")).strip()
+            for author in publication_info.get("authors") or []:
+                if not isinstance(author, dict):
+                    continue
+                name = str(author.get("name", "")).strip()
+                if name:
+                    authors.append(name)
 
         journal = ""
         year: int | None = None
@@ -170,6 +177,7 @@ def _parse_serpapi_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
             "journal": journal,
             "year": year,
             "doi": doi,
+            "authors": authors,
             "source": "google_scholar",
             "source_url": link,
             "pdf_url": pdf_url,
@@ -209,35 +217,6 @@ def _apply_journal_policy(rows: list[dict[str, Any]], profile: ResearchProfile) 
 def _is_domain_relevant(row: dict[str, Any]) -> bool:
     text = f"{row.get('title', '')}\n{row.get('abstract', '')}".lower()
 
-    zinc_hints = (
-        "zinc",
-        "zn-ion",
-        "zn ion",
-        "zn2+",
-        "zn2",
-    )
-    if not any(h in text for h in zinc_hints):
-        return False
-
-    positive_hints = (
-        "battery",
-        "zinc-ion",
-        "zn-ion",
-        "aqueous",
-        "anode",
-        "electrolyte",
-        "plating",
-        "stripping",
-        "dendrite",
-        "her",
-        "coulombic",
-        "solvation",
-        "desolvation",
-        "nucleation",
-    )
-    if not any(h in text for h in positive_hints):
-        return False
-
     negative_hints = (
         "mice",
         "mouse",
@@ -253,6 +232,7 @@ def _is_domain_relevant(row: dict[str, Any]) -> bool:
     if any(h in text for h in negative_hints):
         return False
 
+    # Keep high recall at fetch stage; detailed precision is handled by the screening step.
     return True
 
 

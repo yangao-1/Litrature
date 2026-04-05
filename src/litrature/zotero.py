@@ -31,6 +31,7 @@ def _build_item(row: dict[str, Any]) -> dict[str, Any]:
     journal = str(row.get("journal", "")).strip()
     doi = str(row.get("doi", "")).strip()
     year = row.get("year")
+    creators = _build_mcp_creators(row)
 
     item = {
         "itemType": "journalArticle",
@@ -40,6 +41,7 @@ def _build_item(row: dict[str, Any]) -> dict[str, Any]:
         "date": str(year) if year else "",
         "DOI": doi,
         "url": str(row.get("source_url", "")).strip(),
+        "creators": creators,
         "tags": [{"tag": "auto-import"}],
         "collections": [],
     }
@@ -937,11 +939,24 @@ def _build_note_markdown_for_mcp(row: dict[str, Any], timeout_seconds: int) -> s
     title = str(row.get("title", "")).strip() or "Untitled"
     doi = str(row.get("doi", "")).strip()
     source_url = str(row.get("source_url", "")).strip()
+    journal = str(row.get("journal", "")).strip()
+    year = str(row.get("year", "")).strip()
+    authors = row.get("authors")
+    if isinstance(authors, list):
+        author_text = "; ".join(str(a).strip() for a in authors if str(a).strip())
+    else:
+        author_text = str(authors or "").strip()
+    if not author_text:
+        author_text = "Unknown"
     abstract = str(row.get("abstract", "")).strip()
     if len(abstract) > 2000:
         abstract = abstract[:2000]
     return (
         f"# {title}\n\n"
+        f"- Title: {title}\n"
+        f"- Authors: {author_text}\n"
+        f"- Year: {year}\n"
+        f"- Journal: {journal}\n"
         f"- DOI: {doi}\n"
         f"- URL: {source_url}\n\n"
         "## 摘要\n"

@@ -65,7 +65,10 @@ def generate_note_markdown(row: dict[str, Any], timeout_seconds: int = 30) -> st
     content = _call_chat_completion(prompt=prompt, api_key=api_key, model=model, timeout_seconds=timeout_seconds)
     if not content:
         return _rule_note_markdown(row, template, zotero_key=zotero_key)
-    return content.strip()
+    content = str(content).strip()
+    if not content:
+        return _rule_note_markdown(row, template, zotero_key=zotero_key)
+    return content
 
 
 def generate_report_markdown(

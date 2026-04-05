@@ -567,6 +567,8 @@ def _try_known_zotero_tools(
     parent_key = str(write_item_resp.get("parent_key", "")).strip()
     if not parent_key:
         parent_key = _extract_mcp_parent_key(str(write_item_resp.get("body", "")))
+    if not parent_key:
+        parent_key = _extract_nested_item_key(str(write_item_resp.get("body", "")))
 
     note_resp = {"ok": False, "status": 0, "body": "未执行"}
     write_note_name = ""
@@ -794,6 +796,36 @@ def _extract_mcp_parent_key(text: str) -> str:
     if match:
         return str(match.group(1)).strip()
     return ""
+
+
+def _extract_nested_item_key(text: str) -> str:
+    try:
+        payload = _parse_mcp_payload(text)
+    except Exception:
+        payload = None
+    if not isinstance(payload, dict):
+        return ""
+
+    candidates: list[str] = []
+
+    def walk(node: Any, path: str = "") -> None:
+        if isinstance(node, dict):
+            key_val = node.get("key")
+            if isinstance(key_val, str) and re.fullmatch(r"[A-Z0-9]{8}", key_val.strip()):
+                p = path.lower()
+                # Prefer keys that look like item creation payloads.
+                if any(tag in p for tag in ("item", "data", "result", "structuredcontent", "content")):
+                    candidates.append(key_val.strip())
+                else:
+                    candidates.append(key_val.strip())
+            for k, v in node.items():
+                walk(v, f"{path}.{k}" if path else str(k))
+        elif isinstance(node, list):
+            for i, v in enumerate(node):
+                walk(v, f"{path}[{i}]")
+
+    walk(payload)
+    return candidates[0] if candidates else ""
 
 
 def _normalize_mcp_child_status(

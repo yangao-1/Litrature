@@ -569,6 +569,14 @@ def _try_known_zotero_tools(
         parent_key = _extract_mcp_parent_key(str(write_item_resp.get("body", "")))
     if not parent_key:
         parent_key = _extract_nested_item_key(str(write_item_resp.get("body", "")))
+    if not parent_key:
+        parent_key = _lookup_item_key_after_create(
+            endpoint=endpoint,
+            headers=headers,
+            discovered_tools=discovered_tools,
+            row=row,
+            timeout_seconds=timeout_seconds,
+        )
 
     note_resp = {"ok": False, "status": 0, "body": "未执行"}
     write_note_name = ""
@@ -826,6 +834,82 @@ def _extract_nested_item_key(text: str) -> str:
 
     walk(payload)
     return candidates[0] if candidates else ""
+
+
+def _lookup_item_key_after_create(
+    endpoint: str,
+    headers: dict[str, str],
+    discovered_tools: list[str],
+    row: dict[str, Any],
+    timeout_seconds: int,
+) -> str:
+    discovered = [str(x).strip() for x in discovered_tools if str(x).strip()]
+    tool_name = ""
+    for name in discovered:
+        low = name.lower()
+        if "search" in low and "library" in low:
+            tool_name = name
+            break
+    if not tool_name:
+        return ""
+
+    doi = str(row.get("doi", "")).strip()
+    title = str(row.get("title", "")).strip()
+
+    queries: list[dict[str, Any]] = []
+    if doi:
+        queries.append({"q": doi, "limit": 5, "mode": "preview"})
+    if title:
+        queries.append({"title": title, "titleOperator": "contains", "limit": 5, "mode": "preview"})
+        queries.append({"q": title[:120], "limit": 5, "mode": "preview"})
+
+    for args in queries:
+        resp = _call_mcp_tool(
+            endpoint=endpoint,
+            headers=headers,
+            tool_name=tool_name,
+            arguments=args,
+            timeout_seconds=timeout_seconds,
+        )
+        key = _extract_matching_item_key_from_search_body(
+            body=str(resp.get("body", "")),
+            doi=doi,
+            title=title,
+        )
+        if key:
+            return key
+    return ""
+
+
+def _extract_matching_item_key_from_search_body(body: str, doi: str, title: str) -> str:
+    payload = _parse_mcp_payload(body)
+    if not isinstance(payload, dict):
+        return ""
+
+    doi_low = doi.lower().strip()
+    title_low = title.lower().strip()
+    found: list[str] = []
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            key = str(node.get("itemKey", "") or node.get("key", "")).strip()
+            node_doi = str(node.get("DOI", "") or node.get("doi", "")).strip().lower()
+            node_title = str(node.get("title", "")).strip().lower()
+            if key and re.fullmatch(r"[A-Z0-9]{8}", key):
+                if doi_low and node_doi and doi_low == node_doi:
+                    found.append(key)
+                elif title_low and node_title and (title_low in node_title or node_title in title_low):
+                    found.append(key)
+                else:
+                    found.append(key)
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(payload)
+    return found[0] if found else ""
 
 
 def _normalize_mcp_child_status(

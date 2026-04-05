@@ -273,6 +273,12 @@ def _fetch_paper_excerpt_with_level(row: dict[str, Any], timeout_seconds: int = 
             pdf_url = ""
 
     if not pdf_url:
+        doi = str(row.get("doi", "")).strip()
+        if doi:
+            doi_text = _fetch_doi_landing_excerpt(doi=doi, timeout_seconds=min(timeout_seconds, 20))
+            if doi_text:
+                return doi_text, "doi-webpage"
+
         # No PDF available: try to read full webpage content before falling back to short abstract metadata.
         source_url = str(row.get("source_url", "")).strip()
         if source_url:
@@ -282,8 +288,10 @@ def _fetch_paper_excerpt_with_level(row: dict[str, Any], timeout_seconds: int = 
 
         if abstract:
             return abstract, "abstract"
-        doi = str(row.get("doi", "")).strip()
         if doi:
+            cr_abs = _fetch_crossref_abstract_by_doi(doi=doi, timeout_seconds=min(timeout_seconds, 15))
+            if cr_abs:
+                return cr_abs, "abstract-crossref"
             oa_abs = _fetch_openalex_abstract_by_doi(doi=doi, timeout_seconds=min(timeout_seconds, 15))
             if oa_abs:
                 return oa_abs, "abstract-openalex"
@@ -349,6 +357,72 @@ def _fetch_webpage_excerpt(source_url: str, timeout_seconds: int = 20) -> str:
         return ""
 
     return text[:15000]
+
+
+def _fetch_doi_landing_excerpt(doi: str, timeout_seconds: int = 20) -> str:
+    if not doi:
+        return ""
+    doi_url = f"https://doi.org/{quote(doi)}"
+    req = Request(
+        doi_url,
+        method="GET",
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+    )
+    try:
+        with urlopen(req, timeout=timeout_seconds) as resp:
+            final_url = str(resp.geturl()).strip()
+            ctype = str(resp.headers.get("Content-Type", "")).lower()
+            if "html" in ctype or "xml" in ctype:
+                html = resp.read(900_000).decode("utf-8", errors="ignore")
+                text = _extract_text_from_html(html)
+                if len(text) >= 400:
+                    return text[:15000]
+            if final_url:
+                return _fetch_webpage_excerpt(source_url=final_url, timeout_seconds=timeout_seconds)
+    except Exception:
+        return ""
+    return ""
+
+
+def _extract_text_from_html(html: str) -> str:
+    blocks = []
+    for pat in (
+        r"<article[^>]*>(.*?)</article>",
+        r"<main[^>]*>(.*?)</main>",
+        r"<body[^>]*>(.*?)</body>",
+    ):
+        m = re.search(pat, html, flags=re.IGNORECASE | re.DOTALL)
+        if m:
+            blocks.append(m.group(1))
+
+    raw = blocks[0] if blocks else html
+    raw = re.sub(r"<script[^>]*>.*?</script>", " ", raw, flags=re.IGNORECASE | re.DOTALL)
+    raw = re.sub(r"<style[^>]*>.*?</style>", " ", raw, flags=re.IGNORECASE | re.DOTALL)
+    raw = re.sub(r"<[^>]+>", " ", raw)
+    text = unescape(raw)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def _fetch_crossref_abstract_by_doi(doi: str, timeout_seconds: int = 15) -> str:
+    if not doi:
+        return ""
+    url = f"https://api.crossref.org/works/{quote(doi)}"
+    req = Request(url, method="GET", headers={"User-Agent": "litrature-bot/1.0"})
+    try:
+        with urlopen(req, timeout=timeout_seconds) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return ""
+    message = payload.get("message", {}) if isinstance(payload, dict) else {}
+    abstract_html = str(message.get("abstract", "")).strip()
+    if not abstract_html:
+        return ""
+    text = _extract_text_from_html(abstract_html)
+    return text[:6000]
 
 
 def _pending_fulltext_note_markdown(row: dict[str, Any], zotero_key: str, evidence_level: str) -> str:

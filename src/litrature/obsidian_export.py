@@ -68,7 +68,7 @@ def export_obsidian(
 
         evidence_level = assess_evidence_level(row)
         evidence_counts[evidence_level] = evidence_counts.get(evidence_level, 0) + 1
-        if evidence_level in ("fulltext-local", "fulltext-url", "abstract", "abstract-openalex", "fulltext", "webpage"):
+        if evidence_level in ("fulltext-local", "fulltext-url", "abstract", "abstract-openalex", "abstract-crossref", "fulltext", "webpage", "doi-webpage"):
             readable_count += 1
 
         ai_note_markdown = generate_note_markdown(row, timeout_seconds=summarize_timeout)

@@ -21,6 +21,7 @@ Param(
   [string]$ZoteroMcpSessionId = "",
   [string]$SerpApiKey = "REPLACE_WITH_YOUR_SERPAPI_API_KEY",
   [string]$UnpaywallEmail = "REPLACE_WITH_YOUR_UNPAYWALL_EMAIL",
+  [string]$ScihubBaseUrl = "",
   [string]$OpenAIApiKey = "REPLACE_WITH_YOUR_OPENAI_API_KEY",
   [string]$OpenAIModel = "gpt-4.1",
   [string]$LocalPdfDir = "data/pdf_library"
@@ -144,6 +145,14 @@ if ($Source -eq "google_scholar" -or $Source -eq "mixed") {
 
 if ($UnpaywallEmail -ne "REPLACE_WITH_YOUR_UNPAYWALL_EMAIL") {
   $env:UNPAYWALL_EMAIL = $UnpaywallEmail
+}
+
+if (-not $ScihubBaseUrl) {
+  $ScihubBaseUrl = $env:SCIHUB_BASE_URL
+}
+if ($ScihubBaseUrl) {
+  $env:SCIHUB_BASE_URL = $ScihubBaseUrl
+  Write-Host "DOI mirror enabled via SCIHUB_BASE_URL"
 }
 
 if ($OpenAIApiKey -ne "REPLACE_WITH_YOUR_OPENAI_API_KEY") {

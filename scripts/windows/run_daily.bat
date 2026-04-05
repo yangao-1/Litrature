@@ -19,6 +19,7 @@ set ZOTERO_MCP_METHOD=auto
 set ZOTERO_MCP_SESSION_ID=
 set SERPAPI_API_KEY=REPLACE_WITH_YOUR_SERPAPI_API_KEY
 set UNPAYWALL_EMAIL=REPLACE_WITH_YOUR_UNPAYWALL_EMAIL
+set SCIHUB_BASE_URL=
 set OPENAI_API_KEY=REPLACE_WITH_YOUR_OPENAI_API_KEY
 set OPENAI_MODEL=gpt-4.1
 set LOCAL_PDF_DIR=data/pdf_library
@@ -57,6 +58,9 @@ if /I "%SOURCE%"=="mixed" (
 
 cd /d %REPO_DIR%
 set /p SEARCH_QUERY_LINE=请输入检索关键词（多个用;分隔）: 
+if not "%SCIHUB_BASE_URL%"=="" (
+  echo DOI mirror enabled via SCIHUB_BASE_URL
+)
 if not exist "%VAULT_DIR%" mkdir "%VAULT_DIR%"
 echo Obsidian 导出目录: %VAULT_DIR%
 if not exist .venv (

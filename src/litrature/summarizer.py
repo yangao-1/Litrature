@@ -3,7 +3,9 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 from datetime import datetime
+from html import unescape
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -268,6 +270,13 @@ def _fetch_paper_excerpt_with_level(row: dict[str, Any], timeout_seconds: int = 
             pdf_url = ""
 
     if not pdf_url:
+        # No PDF available: try to read full webpage content before falling back to short abstract metadata.
+        source_url = str(row.get("source_url", "")).strip()
+        if source_url:
+            webpage_text = _fetch_webpage_excerpt(source_url=source_url, timeout_seconds=min(timeout_seconds, 20))
+            if webpage_text:
+                return webpage_text, "webpage"
+
         if abstract:
             return abstract, "abstract"
         doi = str(row.get("doi", "")).strip()
@@ -289,6 +298,54 @@ def _fetch_paper_excerpt_with_level(row: dict[str, Any], timeout_seconds: int = 
     if abstract:
         return abstract, "abstract"
     return "无摘要与全文节选。", base_level
+
+
+def _fetch_webpage_excerpt(source_url: str, timeout_seconds: int = 20) -> str:
+    if not source_url:
+        return ""
+
+    req = Request(
+        source_url,
+        method="GET",
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+    )
+
+    try:
+        with urlopen(req, timeout=timeout_seconds) as resp:
+            content_type = str(resp.headers.get("Content-Type", "")).lower()
+            if "html" not in content_type and "xml" not in content_type:
+                return ""
+            html = resp.read(800_000).decode("utf-8", errors="ignore")
+    except Exception:
+        return ""
+
+    # Prefer article/main section when available.
+    blocks = []
+    for pat in (
+        r"<article[^>]*>(.*?)</article>",
+        r"<main[^>]*>(.*?)</main>",
+        r"<body[^>]*>(.*?)</body>",
+    ):
+        m = re.search(pat, html, flags=re.IGNORECASE | re.DOTALL)
+        if m:
+            blocks.append(m.group(1))
+
+    raw = blocks[0] if blocks else html
+    # Remove scripts/styles and all tags.
+    raw = re.sub(r"<script[^>]*>.*?</script>", " ", raw, flags=re.IGNORECASE | re.DOTALL)
+    raw = re.sub(r"<style[^>]*>.*?</style>", " ", raw, flags=re.IGNORECASE | re.DOTALL)
+    raw = re.sub(r"<[^>]+>", " ", raw)
+    text = unescape(raw)
+    text = re.sub(r"\s+", " ", text).strip()
+
+    # Filter out very short or mostly navigation-like pages.
+    if len(text) < 400:
+        return ""
+
+    return text[:15000]
 
 
 def _pending_fulltext_note_markdown(row: dict[str, Any], zotero_key: str, evidence_level: str) -> str:
@@ -378,6 +435,10 @@ def _rule_note_markdown(row: dict[str, Any], template: str, zotero_key: str) -> 
     doi = str(row.get("doi", "")).strip()
     url = str(row.get("source_url", "")).strip()
     abstract = str(row.get("abstract", "")).strip() or "暂无摘要。"
+    excerpt, evidence_level = _fetch_paper_excerpt_with_level(row=row, timeout_seconds=15)
+    excerpt = (excerpt or "").strip()
+    if len(excerpt) > 1500:
+        excerpt = excerpt[:1500]
 
     filled = template
     filled = filled.replace("${title}", title)
@@ -389,8 +450,10 @@ def _rule_note_markdown(row: dict[str, Any], template: str, zotero_key: str) -> 
         "\n\n"
         "## AI 自动补充说明\n"
         "- 当前未配置 OPENAI_API_KEY 或模型调用失败，已使用规则兜底。\n"
+        f"- 证据等级: {evidence_level}\n"
         f"- 标题: {title}\n"
         f"- 摘要线索: {abstract[:300]}\n"
+        f"- 网页/全文线索: {excerpt if excerpt else '无可用网页正文'}\n"
     )
     return filled + fallback_append
 

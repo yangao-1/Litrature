@@ -24,8 +24,6 @@ def generate_note_markdown(row: dict[str, Any], timeout_seconds: int = 30) -> st
 
     template = _load_note_template()
     paper_excerpt, evidence_level = _fetch_paper_excerpt_with_level(row, timeout_seconds=timeout_seconds)
-    if evidence_level in ("none", "metadata"):
-        return _pending_fulltext_note_markdown(row=row, zotero_key=zotero_key, evidence_level=evidence_level)
 
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:

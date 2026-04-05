@@ -575,14 +575,15 @@ def _try_known_zotero_tools(
             write_note_name = candidate
             break
 
-    if write_note_name and parent_key:
+    if write_note_name:
         note_markdown = _build_note_markdown_for_mcp(row=row, timeout_seconds=timeout_seconds)
         note_args = {
             "action": "create",
-            "parentKey": parent_key,
             "content": note_markdown,
             "tags": ["auto-import"],
         }
+        if parent_key:
+            note_args["parentKey"] = parent_key
         note_resp = _call_mcp_tool(
             endpoint=endpoint,
             headers=headers,
@@ -595,10 +596,11 @@ def _try_known_zotero_tools(
         if (not bool(note_resp.get("ok", False))) and note_html:
             note_args_html = {
                 "action": "create",
-                "parentKey": parent_key,
                 "content": note_html,
                 "tags": ["auto-import"],
             }
+            if parent_key:
+                note_args_html["parentKey"] = parent_key
             note_resp = _call_mcp_tool(
                 endpoint=endpoint,
                 headers=headers,

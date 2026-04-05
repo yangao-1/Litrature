@@ -20,6 +20,7 @@ class SearchOptions:
     max_total: int = 100
     timeout_seconds: int = 20
     days_back: int = 0
+    query_overrides: list[str] | None = None
 
 
 def _strip_html(text: str) -> str:
@@ -236,7 +237,12 @@ def _is_domain_relevant(row: dict[str, Any]) -> bool:
     return True
 
 
-def _build_query_list(profile: ResearchProfile) -> list[str]:
+def _build_query_list(profile: ResearchProfile, query_overrides: list[str] | None = None) -> list[str]:
+    if query_overrides:
+        collected = [str(q).strip() for q in query_overrides if str(q).strip()]
+        if collected:
+            return collected
+
     strategy = profile.search_strategy or {}
     queries = strategy.get("queries")
     if isinstance(queries, list):
@@ -261,7 +267,7 @@ def _row_key(row: dict[str, Any]) -> str:
 
 
 def search_candidates(profile: ResearchProfile, options: SearchOptions) -> list[dict[str, Any]]:
-    query_list = _build_query_list(profile)
+    query_list = _build_query_list(profile, query_overrides=options.query_overrides)
     if not query_list:
         raise ValueError("研究画像中的检索式为空")
 

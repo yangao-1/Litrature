@@ -2,7 +2,8 @@ Param(
   [string]$RepoDir = ".",
   [string]$VaultDir = "",
   [ValidateSet("crossref", "google_scholar", "mixed")]
-  [string]$Source = "crossref",
+  [string]$Source = "google_scholar",
+  [string]$SearchQueryLine = "",
   [int]$DaysBack = 90,
   [int]$Limit = 20,
   [int]$MaxTotal = 120,
@@ -93,6 +94,14 @@ $argsList = @(
   "--reset-dedup-index",
   "--require-openai-summary"
 )
+
+if (-not $SearchQueryLine) {
+  $SearchQueryLine = Read-Host "请输入检索关键词（多个用;分隔）"
+}
+if ($SearchQueryLine) {
+  $argsList += "--query-line"
+  $argsList += "$SearchQueryLine"
+}
 
 if ($ExecuteZotero) {
   if ($ZoteroBackend -eq "api") {

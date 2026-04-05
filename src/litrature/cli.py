@@ -17,6 +17,14 @@ from .search import SearchOptions, search_candidates
 from .zotero import ZoteroConfig, create_item, dry_run_item, extract_success_key
 
 
+def _parse_query_line(text: str) -> list[str]:
+    raw = str(text or "").strip()
+    if not raw:
+        return []
+    chunks = [p.strip() for p in raw.replace("\n", ";").replace("|", ";").split(";")]
+    return [c for c in chunks if c]
+
+
 def cmd_plan(args: argparse.Namespace) -> int:
     app_cfg = build_app_config(Path(args.workspace), args.profile)
     logger = setup_logger(app_cfg.logs_dir)
@@ -126,6 +134,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         max_total=int(args.max_total),
         timeout_seconds=int(args.timeout),
         days_back=int(args.days_back),
+        query_overrides=_parse_query_line(str(getattr(args, "query_line", ""))),
     )
 
     try:
@@ -360,6 +369,7 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
         limit=args.limit,
         max_total=args.max_total,
         timeout=args.timeout,
+        query_line=args.query_line,
         output=args.raw_output,
     )
     if cmd_fetch(fetch_args) != 0:
@@ -613,6 +623,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="data/candidates.raw.jsonl",
         help="候选文献输出 jsonl 相对路径",
     )
+    fetch.add_argument("--query-line", default="", help="手动关键词；多个查询用 ; 分隔，优先于配置文件检索式")
     fetch.set_defaults(func=cmd_fetch)
 
     dedup = sub.add_parser("dedup", help="按 DOI/标题哈希进行去重")
@@ -680,6 +691,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     run_daily = sub.add_parser("run-daily", help="一键执行每日全流程")
     run_daily.add_argument("--source", default="crossref", help="检索源（crossref / google_scholar / mixed）")
+    run_daily.add_argument("--query-line", default="", help="手动关键词；多个查询用 ; 分隔，优先于配置文件检索式")
     run_daily.add_argument("--limit", default=20, type=int, help="单查询拉取上限")
     run_daily.add_argument("--max-total", default=100, type=int, help="合并总条数上限")
     run_daily.add_argument("--days-back", default=0, type=int, help="仅检索最近 N 天（0 表示不限制）")

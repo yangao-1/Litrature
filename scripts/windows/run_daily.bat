@@ -6,8 +6,9 @@ if "%OBSIDIAN_VAULT_DIR%"=="" (
 ) else (
   set "VAULT_DIR=%OBSIDIAN_VAULT_DIR%"
 )
-set SOURCE=crossref
+set SOURCE=google_scholar
 set DAYS_BACK=90
+set SEARCH_QUERY_LINE=
 set ZOTERO_BACKEND=mcp
 set ZOTERO_LIBRARY_TYPE=users
 set ZOTERO_LIBRARY_ID=
@@ -55,6 +56,7 @@ if /I "%SOURCE%"=="mixed" (
 )
 
 cd /d %REPO_DIR%
+set /p SEARCH_QUERY_LINE=请输入检索关键词（多个用;分隔）: 
 if not exist "%VAULT_DIR%" mkdir "%VAULT_DIR%"
 echo Obsidian 导出目录: %VAULT_DIR%
 if not exist .venv (
@@ -63,7 +65,7 @@ if not exist .venv (
 
 set PYTHONPATH=src
 .venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe -m litrature run-daily --source "%SOURCE%" --days-back %DAYS_BACK% --limit 20 --max-total 120 --vault-dir "%VAULT_DIR%" --zotero-backend "%ZOTERO_BACKEND%" --disable-local-pdf-cache --reset-dedup-index --execute-zotero --allow-zotero-zero-success --require-openai-summary
+.venv\Scripts\python.exe -m litrature run-daily --source "%SOURCE%" --query-line "%SEARCH_QUERY_LINE%" --days-back %DAYS_BACK% --limit 20 --max-total 120 --vault-dir "%VAULT_DIR%" --zotero-backend "%ZOTERO_BACKEND%" --disable-local-pdf-cache --reset-dedup-index --execute-zotero --allow-zotero-zero-success --require-openai-summary
 if errorlevel 1 (
   echo Daily workflow failed. Please check OPENAI_API_KEY/Zotero settings and logs.
   exit /b 1

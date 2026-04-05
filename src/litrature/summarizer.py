@@ -279,6 +279,10 @@ def _fetch_paper_excerpt_with_level(row: dict[str, Any], timeout_seconds: int = 
             if doi_text:
                 return doi_text, "doi-webpage"
 
+            mirror_text = _fetch_doi_mirror_excerpt(doi=doi, timeout_seconds=min(timeout_seconds, 20))
+            if mirror_text:
+                return mirror_text, "doi-mirror-webpage"
+
         # No PDF available: try to read full webpage content before falling back to short abstract metadata.
         source_url = str(row.get("source_url", "")).strip()
         if source_url:
@@ -385,6 +389,43 @@ def _fetch_doi_landing_excerpt(doi: str, timeout_seconds: int = 20) -> str:
     except Exception:
         return ""
     return ""
+
+
+def _fetch_doi_mirror_excerpt(doi: str, timeout_seconds: int = 20) -> str:
+    """Optional mirror-based evidence fetch.
+
+    To avoid hard-coding any third-party source, this path is enabled only when
+    SCIHUB_BASE_URL is explicitly set by the user.
+    """
+    base = os.getenv("SCIHUB_BASE_URL", "").strip()
+    if not base or not doi:
+        return ""
+
+    if not base.startswith(("http://", "https://")):
+        return ""
+
+    target = base.rstrip("/") + "/" + quote(doi)
+    req = Request(
+        target,
+        method="GET",
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+    )
+    try:
+        with urlopen(req, timeout=timeout_seconds) as resp:
+            ctype = str(resp.headers.get("Content-Type", "")).lower()
+            if "html" not in ctype and "xml" not in ctype:
+                return ""
+            html = resp.read(900_000).decode("utf-8", errors="ignore")
+    except Exception:
+        return ""
+
+    text = _extract_text_from_html(html)
+    if len(text) < 400:
+        return ""
+    return text[:15000]
 
 
 def _extract_text_from_html(html: str) -> str:
